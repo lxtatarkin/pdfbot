@@ -63,7 +63,7 @@ FILES_DIR.mkdir(exist_ok=True)
 # =========================
 #   USER STATES
 # =========================
-# mode: compress, pdf_text, doc_photo, merge, split, ocr, watermark_*, ...
+# mode: compress, pdf_text, doc_photo, merge, split, ocr, watermark_*
 user_modes: dict[int, str] = {}
 
 # list of files for merging
@@ -217,7 +217,7 @@ async def main():
         user_id = message.from_user.id
         user_modes[user_id] = "doc_photo"
         user_merge_files[user_id] = []
-        user_watermark_state[user_id] = []
+        user_watermark_state[user_id] = {}
         await message.answer(
             "Режим: DOC/IMG → PDF. Пришли документ или файл-изображение.",
             reply_markup=get_main_keyboard()
@@ -323,16 +323,19 @@ async def main():
             all_text_parts: list[str] = []
 
             try:
+                from PIL import Image
                 for page_index, page in enumerate(pdf_doc, start=1):
                     pix = page.get_pixmap(dpi=300)
                     img_path = FILES_DIR / f"ocr_{user_id}_{page_index}.png"
                     pix.save(img_path)
 
+                    img = Image.open(img_path)
                     text_page = pytesseract.image_to_string(
-                        str(img_path),
+                        img,
                         lang="rus+eng"
                     )
                     all_text_parts.append(text_page)
+                pdf_doc.close()
             except Exception as e:
                 logger.error(f"OCR processing error: {e}")
                 await message.answer("Ошибка при распознавании текста.")
@@ -517,6 +520,40 @@ async def main():
             src_path = FILES_DIR / filename
             await bot.download_file(file.file_path, destination=src_path)
 
+            # если режим OCR и PRO — делаем OCR по изображению
+            user_id = message.from_user.id
+            mode = user_modes.get(user_id, "compress")
+
+            if mode == "ocr":
+                if not is_pro(user_id):
+                    await message.answer("OCR доступен только для PRO-пользователей. См. /pro")
+                    return
+
+                await message.answer("Распознаю текст на изображении (OCR)...")
+                try:
+                    img = Image.open(src_path)
+                    text_page = pytesseract.image_to_string(img, lang="rus+eng")
+                except Exception as e:
+                    logger.error(f"OCR image-doc error: {e}")
+                    await message.answer("Ошибка при распознавании текста.")
+                    return
+
+                full_text = (text_page or "").strip()
+                if not full_text:
+                    await message.answer("Не удалось распознать текст на изображении.")
+                    return
+
+                txt_path = FILES_DIR / (Path(filename).stem + "_ocr.txt")
+                txt_path.write_text(full_text, encoding="utf-8")
+
+                await message.answer_document(
+                    types.FSInputFile(txt_path),
+                    caption="Готово: OCR-текст из изображения."
+                )
+                logger.info(f"OCR IMAGE-DOC done for user {user_id}")
+                return
+
+            # иначе — конвертация в PDF
             pdf_path = FILES_DIR / (Path(filename).stem + ".pdf")
             try:
                 img = Image.open(src_path).convert("RGB")
@@ -565,6 +602,73 @@ async def main():
             return
 
         await message.answer_document(types.FSInputFile(pdf_path), caption="Готово.")
+        return
+
+    # ================================
+    #   PHOTO (telegram photo) → OCR / PDF
+    # ================================
+    @dp.message(F.photo)
+    async def handle_photo(message: types.Message):
+        user_id = message.from_user.id
+        mode = user_modes.get(user_id, "compress")
+
+        photo = message.photo[-1]  # самое большое
+        # size check
+        if not await check_size_or_reject(message, photo.file_size):
+            return
+
+        file = await bot.get_file(photo.file_id)
+        jpg_name = f"{photo.file_id}.jpg"
+        src_path = FILES_DIR / jpg_name
+        await bot.download_file(file.file_path, destination=src_path)
+
+        from PIL import Image
+
+        # OCR режим
+        if mode == "ocr":
+            if not is_pro(user_id):
+                await message.answer("OCR доступен только для PRO-пользователей. См. /pro")
+                return
+
+            await message.answer("Распознаю текст на фото (OCR)...")
+            try:
+                img = Image.open(src_path)
+                text_page = pytesseract.image_to_string(img, lang="rus+eng")
+            except Exception as e:
+                logger.error(f"OCR photo error: {e}")
+                await message.answer("Ошибка при распознавании текста.")
+                return
+
+            full_text = (text_page or "").strip()
+            if not full_text:
+                await message.answer("Не удалось распознать текст на фото.")
+                return
+
+            txt_path = FILES_DIR / f"{photo.file_id}_ocr.txt"
+            txt_path.write_text(full_text, encoding="utf-8")
+
+            await message.answer_document(
+                types.FSInputFile(txt_path),
+                caption="Готово: OCR-текст с фото."
+            )
+            logger.info(f"OCR PHOTO done for user {user_id}")
+            return
+
+        # Остальные режимы: просто фото → PDF
+        pdf_path = FILES_DIR / (Path(jpg_name).stem + ".pdf")
+        try:
+            img = Image.open(src_path).convert("RGB")
+            img.save(pdf_path, "PDF")
+        except Exception as e:
+            logger.error(f"PHOTO->PDF error: {e}")
+            await message.answer("Не удалось конвертировать фото в PDF.")
+            return
+
+        await message.answer_document(
+            types.FSInputFile(pdf_path),
+            caption="Фото сконвертировано в PDF."
+        )
+        logger.info(f"PHOTO converted to PDF for user {user_id}")
         return
 
     # ================================
@@ -637,41 +741,47 @@ async def main():
                 return
 
             try:
-            for page in doc:
-                rect = page.rect
-                w = rect.width
-                h = rect.height
+                for page in doc:
+                    rect = page.rect
+                    w = rect.width
+                    h = rect.height
 
-                fontsize = max(w, h) / 20
-                color = (0.7, 0.7, 0.7)
+                    fontsize = max(w, h) / 20
+                    color = (0.7, 0.7, 0.7)
 
-                if style == 1:
-                    point = fitz.Point(w / 2, h / 2)
-                    page.insert_text(
-                        point,
-                        wm_text,
-                        fontsize=fontsize,
-                        color=color,
-                        rotate=45,
-                    )
+                    if style == 1:
+                        # диагональ по центру
+                        point = fitz.Point(w / 2, h / 2)
+                        page.insert_text(
+                            point,
+                            wm_text,
+                            fontsize=fontsize,
+                            color=color,
+                            rotate=45,
+                        )
 
-                elif style == 2:
-                    point = fitz.Point(w / 2, h / 2)
-                    page.insert_text(
-                        point,
-                        wm_text,
-                        fontsize=fontsize * 0.7,
-                        color=color,
-                    )
+                    elif style == 2:
+                        # по центру
+                        point = fitz.Point(w / 2, h / 2)
+                        page.insert_text(
+                            point,
+                            wm_text,
+                            fontsize=fontsize * 0.7,
+                            color=color,
+                        )
 
-                elif style == 3:
-                    point = fitz.Point(w / 2, h - 40)
-                    page.insert_text(
-                        point,
-                        wm_text,
-                        fontsize=fontsize * 0.6,
-                        color=color,
-                    )
+                    elif style == 3:
+                        # внизу страницы
+                        point = fitz.Point(w / 2, h - 40)
+                        page.insert_text(
+                            point,
+                            wm_text,
+                            fontsize=fontsize * 0.6,
+                            color=color,
+                        )
+
+                doc.save(str(pdf_out))
+                doc.close()
 
             except Exception as e:
                 logger.error(f"Watermark apply error: {e}")
@@ -687,7 +797,6 @@ async def main():
                 caption="Готово: PDF с водяным знаком."
             )
 
-            # сбрасываем состояние
             user_watermark_state[user_id] = {}
             user_modes[user_id] = "compress"
             return
