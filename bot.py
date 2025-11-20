@@ -87,10 +87,10 @@ async def main():
     # === ПОТОМ: приём документов (КРОМЕ PDF) и конвертация в PDF ===
     @dp.message(F.document & (F.document.mime_type != "application/pdf"))
     async def handle_document(message: types.Message):
-        logger.info(f"DOC ({ext}) from {message.from_user.id}")
         doc = message.document
         filename = doc.file_name or "file"
         ext = filename.split(".")[-1].lower()
+        logger.info(f"DOC ({ext}) from {message.from_user.id}")
 
         supported = {"doc", "docx", "xls", "xlsx", "ppt", "pptx"}
 
@@ -107,7 +107,7 @@ async def main():
 
         await message.answer("Конвертирую документ в PDF, подождите несколько секунд...")
 
-        # Путь к LibreOffice (по умолчанию для Windows)
+        # Путь к LibreOffice — ЭТО ДЛЯ WINDOWS, В ОБЛАКЕ НЕ СРАБОТАЕТ
         lo_path = r"C:\Program Files\LibreOffice\program\soffice.exe"
 
         result = subprocess.run(
@@ -124,6 +124,7 @@ async def main():
         )
 
         if result.returncode != 0:
+            logger.error(f"LibreOffice convert error, code={result.returncode}, stderr={result.stderr}")
             await message.answer("Произошла ошибка при конвертации документа.")
             return
 
