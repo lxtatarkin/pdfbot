@@ -27,6 +27,10 @@ FILES_DIR.mkdir(exist_ok=True)
 
 
 async def main():
+    if not TOKEN:
+        logger.error("BOT_TOKEN is not set in environment")
+        return
+
     bot = Bot(token=TOKEN)
     dp = Dispatcher()
 
@@ -46,11 +50,12 @@ async def main():
         )
         await message.answer(text)
 
-        # === Приём PDF и сжатие ===
+    # === Приём PDF и сжатие ===
     @dp.message(F.document & (F.document.mime_type == "application/pdf"))
     async def handle_pdf(message: types.Message):
-        logger.info(f"PDF received for compression from {message.from_user.id}")
         from pikepdf import Pdf
+
+        logger.info(f"PDF received for compression from {message.from_user.id}")
 
         doc = message.document
         file = await bot.get_file(doc.file_id)
@@ -74,17 +79,16 @@ async def main():
             logger.info("PDF successfully compressed")
 
         except Exception as e:
-            print(f"PDF compress error: {e}")
+            logger.error(f"PDF compress error: {e}")
             await message.answer(
                 "Не удалось сжать PDF, отправляю оригинальный файл."
             )
-            logger.error(f"PDF compress error: {e}")
             await message.answer_document(
                 types.FSInputFile(src_path),
                 caption="Возвращаю оригинальный PDF."
             )
 
-    # === ПОТОМ: приём документов (КРОМЕ PDF) и конвертация в PDF ===
+    # === Приём документов (КРОМЕ PDF) и конвертация в PDF ===
     @dp.message(F.document & (F.document.mime_type != "application/pdf"))
     async def handle_document(message: types.Message):
         doc = message.document
@@ -124,7 +128,9 @@ async def main():
         )
 
         if result.returncode != 0:
-            logger.error(f"LibreOffice convert error, code={result.returncode}, stderr={result.stderr}")
+            logger.error(
+                f"LibreOffice convert error, code={result.returncode}, stderr={result.stderr}"
+            )
             await message.answer("Произошла ошибка при конвертации документа.")
             return
 
@@ -132,6 +138,7 @@ async def main():
         pdf_path = FILES_DIR / pdf_name
 
         if not pdf_path.exists():
+            logger.error(f"PDF file not found after conversion: {pdf_path}")
             await message.answer("PDF-файл не найден после конвертации.")
             return
 
