@@ -637,46 +637,42 @@ async def main():
                 return
 
             try:
-                for page in doc:
-                    rect = page.rect
-                    w = rect.width
-                    h = rect.height
+            for page in doc:
+                rect = page.rect
+                w = rect.width
+                h = rect.height
 
-                    # общие параметры
-                    fontsize = max(w, h) / 20
-                    color = (0.7, 0.7, 0.7)  # светло-серый
+                fontsize = max(w, h) / 20
+                color = (0.7, 0.7, 0.7)
 
-            if style == 1:
-                # диагональ по центру
-                point = fitz.Point(w / 2, h / 2)
-                page.insert_text(
-                    point,
-                    wm_text,
-                    fontsize=fontsize,
-                    color=color,
-                    rotate=45,
-                )
-            elif style == 2:
-                # центр страницы, без поворота
-                point = fitz.Point(w / 2, h / 2)
-                page.insert_text(
-                    point,
-                    wm_text,
-                    fontsize=fontsize * 0.7,
-                    color=color,
-                )
-            elif style == 3:
-                # низ страницы
-                point = fitz.Point(w / 2, h - 40)
-                page.insert_text(
-                    point,
-                    wm_text,
-                    fontsize=fontsize * 0.6,
-                    color=color,
-                )
+                if style == 1:
+                    point = fitz.Point(w / 2, h / 2)
+                    page.insert_text(
+                        point,
+                        wm_text,
+                        fontsize=fontsize,
+                        color=color,
+                        rotate=45,
+                    )
 
-                doc.save(str(pdf_out))
-                doc.close()
+                elif style == 2:
+                    point = fitz.Point(w / 2, h / 2)
+                    page.insert_text(
+                        point,
+                        wm_text,
+                        fontsize=fontsize * 0.7,
+                        color=color,
+                    )
+
+                elif style == 3:
+                    point = fitz.Point(w / 2, h - 40)
+                    page.insert_text(
+                        point,
+                        wm_text,
+                        fontsize=fontsize * 0.6,
+                        color=color,
+                    )
+
             except Exception as e:
                 logger.error(f"Watermark apply error: {e}")
                 await message.answer("Ошибка при добавлении водяного знака.")
