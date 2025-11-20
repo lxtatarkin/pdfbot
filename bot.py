@@ -15,6 +15,33 @@ from PyPDF2 import PdfReader, PdfMerger, PdfWriter  # PDF: текст, merge, sp
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
 
+# ===== PRO / FREE настройки =====
+PRO_USERS_RAW = os.getenv("PRO_USERS", "")
+
+# Множество PRO-пользователей (ID телеграма)
+PRO_USERS: set[int] = set()
+for part in PRO_USERS_RAW.split(","):
+    part = part.strip()
+    if part.isdigit():
+        PRO_USERS.add(int(part))
+
+# Лимиты по размеру файлов (в байтах)
+FREE_MAX_SIZE = 20 * 1024 * 1024      # 20 MB
+PRO_MAX_SIZE = 100 * 1024 * 1024      # 100 MB
+
+
+def is_pro(user_id: int) -> bool:
+    return user_id in PRO_USERS
+
+
+def get_user_limit(user_id: int) -> int:
+    return PRO_MAX_SIZE if is_pro(user_id) else FREE_MAX_SIZE
+
+
+def format_mb(bytes_size: int) -> str:
+    return f"{bytes_size / (1024 * 1024):.0f} МБ"
+
+
 # Логирование
 logging.basicConfig(
     level=logging.INFO,
@@ -45,6 +72,32 @@ async def main():
 
     logger.info("Bot started")
 
+    # ===== общая проверка размера файла =====
+    async def check_size_or_reject(message: types.Message, size_bytes: int | None) -> bool:
+        """
+        Возвращает True, если файл можно обрабатывать.
+        Если превышен лимит тарифа — отправляет сообщение и возвращает False.
+        """
+        user_id = message.from_user.id
+        max_size = get_user_limit(user_id)
+        tier = "PRO" if is_pro(user_id) else "FREE"
+
+        if size_bytes is not None and size_bytes > max_size:
+            limit_str = format_mb(max_size)
+            await message.answer(
+                f"Файл слишком большой для вашего тарифа ({tier}).\n"
+                f"Текущий лимит: {limit_str}.\n\n"
+                "Для работы с более крупными файлами нужен PRO-доступ.\n"
+                "Посмотрите /pro для деталей."
+            )
+            logger.info(
+                f"User {user_id} exceeded size limit: size={size_bytes}, "
+                f"limit={max_size}, tier={tier}"
+            )
+            return False
+
+        return True
+
     # ===== КЛАВИАТУРА РЕЖИМОВ =====
     def get_main_keyboard() -> ReplyKeyboardMarkup:
         return ReplyKeyboardMarkup(
@@ -66,7 +119,15 @@ async def main():
 
     @dp.message(Command("start"))
     async def start_cmd(message: types.Message):
-        logger.info(f"/start from {message.from_user.id} ({message.from_user.username})")
+        user_id = message.from_user.id
+        username = message.from_user.username
+        user_modes[user_id] = "compress"
+        user_merge_files[user_id] = []
+
+        tier = "PRO" if is_pro(user_id) else "FREE"
+        limit_mb = format_mb(get_user_limit(user_id))
+
+        logger.info(f"/start from {user_id} ({username}), tier={tier}")
         text = (
             "👋 Привет! Я конвертирую и обрабатываю файлы в PDF прямо в Telegram.\n\n"
             "Выбери режим на клавиатуре ниже и пришли файл(ы):\n"
@@ -75,12 +136,40 @@ async def main():
             "• ✂️ Разделить PDF — разбить PDF на отдельные страницы\n"
             "• 📝 PDF → текст — вытащить текст из PDF в .txt\n"
             "• 📄 Документ/фото → PDF — сделать PDF из DOC/XLS/PPT или картинки\n\n"
-            "По умолчанию: сжатие PDF."
+            f"Текущий тариф: <b>{tier}</b>\n"
+            f"Максимальный размер файла: <b>{limit_mb}</b>\n\n"
+            "По умолчанию: сжатие PDF.\n"
+            "Команда /pro — как получить PRO."
         )
+        await message.answer(text, reply_markup=get_main_keyboard(), parse_mode="HTML")
+
+    # ===== /pro =====
+
+    @dp.message(Command("pro"))
+    async def pro_cmd(message: types.Message):
         user_id = message.from_user.id
-        user_modes[user_id] = "compress"
-        user_merge_files[user_id] = []
-        await message.answer(text, reply_markup=get_main_keyboard())
+
+        if is_pro(user_id):
+            limit_str = format_mb(get_user_limit(user_id))
+            await message.answer(
+                "✅ У вас уже активен <b>PRO</b>-доступ.\n\n"
+                f"Текущий лимит файла: <b>{limit_str}</b>.\n"
+                "Спасибо за поддержку!",
+                parse_mode="HTML"
+            )
+        else:
+            await message.answer(
+                "💼 <b>PRO-версия бота</b>\n\n"
+                "Что даёт PRO сейчас:\n"
+                "• Лимит размера файла: до 100 МБ (вместо 20 МБ)\n"
+                "• Приоритет обработки\n\n"
+                "В будущем в PRO появятся:\n"
+                "• OCR (распознавание сканов)\n"
+                "• водяные знаки и другие функции\n\n"
+                "Сейчас PRO подключается вручную.\n"
+                "Напишите владельцу бота, чтобы получить подробности.",
+                parse_mode="HTML"
+            )
 
     # ===== ОБРАБОТКА ВЫБОРА РЕЖИМА КНОПКАМИ =====
 
@@ -153,6 +242,10 @@ async def main():
         user_id = message.from_user.id
         mode = user_modes.get(user_id, "compress")
         doc = message.document
+
+        # проверка лимита размера
+        if not await check_size_or_reject(message, doc.file_size):
+            return
 
         logger.info(f"PDF from {user_id}, mode={mode}")
 
@@ -328,6 +421,10 @@ async def main():
         filename = doc.file_name or "file"
         ext = filename.split(".")[-1].lower()
         logger.info(f"DOC ({ext}) from {message.from_user.id}, mime={doc.mime_type}")
+
+        # проверка лимита размера
+        if not await check_size_or_reject(message, doc.file_size):
+            return
 
         # 1) Изображение, отправленное как файл
         if doc.mime_type and doc.mime_type.startswith("image/"):
