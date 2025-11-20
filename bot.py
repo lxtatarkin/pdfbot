@@ -4,6 +4,8 @@ from pathlib import Path
 import os
 import logging
 import zipfile
+import fitz  # PyMuPDF
+import pytesseract
 
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
@@ -116,6 +118,9 @@ async def main():
                 [
                     KeyboardButton(text="📄 Документ/фото → PDF"),
                 ],
+                [
+                    KeyboardButton(text="🔍 OCR (PRO)"),
+                ],
             ],
             resize_keyboard=True
         )
@@ -226,6 +231,25 @@ async def main():
             reply_markup=get_main_keyboard()
         )
 
+    @dp.message(F.text == "🔍 OCR (PRO)")
+    async def mode_ocr(message: types.Message):
+        user_id = message.from_user.id
+        user_modes[user_id] = "ocr"
+        user_merge_files[user_id] = []
+
+        if not is_pro(user_id):
+            await message.answer(
+                "Режим: 🔍 OCR (распознавание текста в сканах и фото).\n"
+                "Эта функция доступна только для PRO-пользователей.\n\n"
+                "Подробнее: /pro"
+            )
+        else:
+            await message.answer(
+                "Режим: 🔍 OCR.\n"
+                "Пришли PDF-скан или изображение (фото/картинка). Я верну TXT-файл с распознанным текстом."
+            )
+
+
     # ================================
     #   HANDLE PDF
     # ================================
@@ -242,6 +266,58 @@ async def main():
         file = await bot.get_file(doc.file_id)
         src_path = FILES_DIR / doc.file_name
         await bot.download_file(file.file_path, destination=src_path)
+
+        # =============================
+        # PRO: OCR ДЛЯ PDF
+        # =============================
+        if mode == "ocr":
+            if not is_pro(user_id):
+                await message.answer("OCR доступен только для PRO-пользователей. См. /pro")
+                return
+
+            await message.answer("Распознаю текст в PDF (OCR)...")
+
+            try:
+                pdf_doc = fitz.open(str(src_path))
+            except Exception as e:
+                logger.error(f"OCR PDF open error: {e}")
+                await message.answer("Не удалось открыть PDF для OCR.")
+                return
+
+            all_text_parts: list[str] = []
+
+            try:
+                for page_index, page in enumerate(pdf_doc, start=1):
+                    # рендерим страницу в картинку
+                    pix = page.get_pixmap(dpi=300)
+                    img_path = FILES_DIR / f"ocr_{user_id}_{page_index}.png"
+                    pix.save(img_path)
+
+                    # OCR по картинке
+                    text_page = pytesseract.image_to_string(
+                        str(img_path),
+                        lang="rus+eng"
+                    )
+                    all_text_parts.append(text_page)
+            except Exception as e:
+                logger.error(f"OCR processing error: {e}")
+                await message.answer("Ошибка при распознавании текста.")
+                return
+
+            full_text = "\n\n".join(all_text_parts).strip()
+            if not full_text:
+                await message.answer("Не удалось распознать текст (возможно очень плохое качество скана).")
+                return
+
+            txt_path = FILES_DIR / (Path(doc.file_name).stem + "_ocr.txt")
+            txt_path.write_text(full_text, encoding="utf-8")
+
+            await message.answer_document(
+                types.FSInputFile(txt_path),
+                caption="Готово: OCR-текст из PDF."
+            )
+            logger.info(f"OCR PDF done for user {user_id}")
+            return
 
         # =============================
         # MERGE MODE
