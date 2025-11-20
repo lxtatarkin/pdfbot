@@ -34,19 +34,20 @@ async def main():
     bot = Bot(token=TOKEN)
     dp = Dispatcher()
 
-    logger.info("Bot started on Railway")
+    logger.info("Bot started")
 
     @dp.message(Command("start"))
     async def start_cmd(message: types.Message):
         logger.info(f"/start from {message.from_user.id} ({message.from_user.username})")
         text = (
             "👋 Привет! Я конвертирую файлы в PDF прямо в Telegram.\n\n"
-            "Что я уже умею:\n"
+            "Что я умею:\n"
             "• Фото → PDF\n"
             "• DOC / DOCX → PDF\n"
             "• XLS / XLSX → PDF\n"
-            "• PPT / PPTX → PDF\n\n"
-            "Просто отправьте мне файл (документ или фото), и я верну PDF."
+            "• PPT / PPTX → PDF\n"
+            "• Сжатие PDF\n\n"
+            "Просто отправьте файл (фото, документ или PDF) — я верну результат."
         )
         await message.answer(text)
 
@@ -68,7 +69,6 @@ async def main():
         compressed_path = FILES_DIR / f"compressed_{doc.file_name}"
 
         try:
-            # Просто пересохраняем PDF — это базовое сжатие
             with Pdf.open(src_path) as pdf:
                 pdf.save(compressed_path)
 
@@ -98,10 +98,6 @@ async def main():
 
         supported = {"doc", "docx", "xls", "xlsx", "ppt", "pptx"}
 
-        file = await bot.get_file(doc.file_id)
-        src_path = FILES_DIR / filename
-        await bot.download_file(file.file_path, destination=src_path)
-
         if ext not in supported:
             await message.answer(
                 "Документ сохранён.\n"
@@ -109,23 +105,39 @@ async def main():
             )
             return
 
+        file = await bot.get_file(doc.file_id)
+        src_path = FILES_DIR / filename
+        await bot.download_file(file.file_path, destination=src_path)
+
         await message.answer("Конвертирую документ в PDF, подождите несколько секунд...")
 
-        # Путь к LibreOffice — ЭТО ДЛЯ WINDOWS, В ОБЛАКЕ НЕ СРАБОТАЕТ
-        lo_path = r"C:\Program Files\LibreOffice\program\soffice.exe"
+        # Выбираем путь к LibreOffice в зависимости от ОС
+        if os.name == "nt":
+            # Windows (локальный запуск)
+            lo_path = r"C:\Program Files\LibreOffice\program\soffice.exe"
+        else:
+            # Linux (Railway / Docker)
+            lo_path = "soffice"
 
-        result = subprocess.run(
-            [
-                lo_path,
-                "--headless",
-                "--convert-to", "pdf",
-                "--outdir", str(FILES_DIR),
-                str(src_path),
-            ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
+        logger.info(f"Using LibreOffice binary: {lo_path} (os.name={os.name})")
+
+        try:
+            result = subprocess.run(
+                [
+                    lo_path,
+                    "--headless",
+                    "--convert-to", "pdf",
+                    "--outdir", str(FILES_DIR),
+                    str(src_path),
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        except Exception as e:
+            logger.error(f"LibreOffice subprocess error: {e}")
+            await message.answer("Произошла ошибка при конвертации документа (subprocess).")
+            return
 
         if result.returncode != 0:
             logger.error(
@@ -152,21 +164,18 @@ async def main():
     @dp.message(F.photo)
     async def handle_photo(message: types.Message):
         logger.info(f"PHOTO from {message.from_user.id}")
-        from PIL import Image  # импорт внутри хэндлера
+        from PIL import Image
 
-        photo = message.photo[-1]  # самое большое по размеру
+        photo = message.photo[-1]
         file = await bot.get_file(photo.file_id)
 
-        # Сохраняем оригинальное фото
         jpg_path = FILES_DIR / f"{photo.file_id}.jpg"
         await bot.download_file(file.file_path, destination=jpg_path)
 
-        # Конвертация в PDF
         pdf_path = FILES_DIR / f"{photo.file_id}.pdf"
         image = Image.open(jpg_path).convert("RGB")
         image.save(pdf_path, "PDF")
 
-        # Отправляем PDF пользователю
         await message.answer_document(
             types.FSInputFile(pdf_path),
             caption="Фото сконвертировано в PDF."
