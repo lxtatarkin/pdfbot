@@ -8,7 +8,7 @@ from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from dotenv import load_dotenv
-from PyPDF2 import PdfReader  # для PDF -> текст
+from PyPDF2 import PdfReader, PdfMerger  # PDF -> текст и объединение
 
 # грузим .env
 load_dotenv()
@@ -27,8 +27,11 @@ BASE_DIR = Path(__file__).parent
 FILES_DIR = BASE_DIR / "files"
 FILES_DIR.mkdir(exist_ok=True)
 
-# Режимы пользователя: user_id -> mode ("compress", "pdf_text", "doc_photo")
+# Режимы пользователя: user_id -> mode ("compress", "pdf_text", "doc_photo", "merge")
 user_modes: dict[int, str] = {}
+
+# Для режима объединения: user_id -> список путей к PDF
+user_merge_files: dict[int, list[Path]] = {}
 
 
 async def main():
@@ -45,7 +48,8 @@ async def main():
     def get_main_keyboard() -> ReplyKeyboardMarkup:
         return ReplyKeyboardMarkup(
             keyboard=[
-                [KeyboardButton(text="📉 Сжать PDF")],
+                [KeyboardButton(text="📉 Сжать PDF"),
+                 KeyboardButton(text="📎 Объединить PDF")],
                 [KeyboardButton(text="📝 PDF → текст")],
                 [KeyboardButton(text="📄 Документ/фото → PDF")],
             ],
@@ -56,42 +60,69 @@ async def main():
     async def start_cmd(message: types.Message):
         logger.info(f"/start from {message.from_user.id} ({message.from_user.username})")
         text = (
-            "👋 Привет! Я конвертирую файлы в PDF прямо в Telegram.\n\n"
-            "Выбери режим на клавиатуре ниже и пришли файл:\n"
+            "👋 Привет! Я конвертирую и обрабатываю файлы в PDF прямо в Telegram.\n\n"
+            "Выбери режим на клавиатуре ниже и пришли файл(ы):\n"
             "• 📉 Сжать PDF — уменьшить размер PDF\n"
+            "• 📎 Объединить PDF — склеить несколько PDF в один\n"
             "• 📝 PDF → текст — вытащить текст из PDF в .txt\n"
             "• 📄 Документ/фото → PDF — сделать PDF из DOC/XLS/PPT или картинки\n\n"
             "По умолчанию: сжатие PDF."
         )
-        # режим по умолчанию
         user_modes[message.from_user.id] = "compress"
+        user_merge_files[message.from_user.id] = []
         await message.answer(text, reply_markup=get_main_keyboard())
 
     # ===== ОБРАБОТКА ВЫБОРА РЕЖИМА КНОПКАМИ =====
 
     @dp.message(F.text == "📉 Сжать PDF")
     async def set_mode_compress(message: types.Message):
-        user_modes[message.from_user.id] = "compress"
-        await message.answer("Режим: 📉 сжатие PDF. Пришли PDF-файл.", reply_markup=get_main_keyboard())
-        logger.info(f"Mode for {message.from_user.id} = compress")
+        user_id = message.from_user.id
+        user_modes[user_id] = "compress"
+        user_merge_files[user_id] = []
+        await message.answer(
+            "Режим: 📉 сжатие PDF. Пришли PDF-файл.",
+            reply_markup=get_main_keyboard()
+        )
+        logger.info(f"Mode for {user_id} = compress")
 
     @dp.message(F.text == "📝 PDF → текст")
     async def set_mode_pdf_text(message: types.Message):
-        user_modes[message.from_user.id] = "pdf_text"
-        await message.answer("Режим: 📝 PDF → текст. Пришли PDF-файл.", reply_markup=get_main_keyboard())
-        logger.info(f"Mode for {message.from_user.id} = pdf_text")
+        user_id = message.from_user.id
+        user_modes[user_id] = "pdf_text"
+        user_merge_files[user_id] = []
+        await message.answer(
+            "Режим: 📝 PDF → текст. Пришли PDF-файл.",
+            reply_markup=get_main_keyboard()
+        )
+        logger.info(f"Mode for {user_id} = pdf_text")
 
     @dp.message(F.text == "📄 Документ/фото → PDF")
     async def set_mode_doc_photo(message: types.Message):
-        user_modes[message.from_user.id] = "doc_photo"
+        user_id = message.from_user.id
+        user_modes[user_id] = "doc_photo"
+        user_merge_files[user_id] = []
         await message.answer(
             "Режим: 📄 документ/фото → PDF.\n"
             "Пришли офисный документ (DOCX, XLSX, PPTX) или картинку (как фото или как файл).",
             reply_markup=get_main_keyboard()
         )
-        logger.info(f"Mode for {message.from_user.id} = doc_photo")
+        logger.info(f"Mode for {user_id} = doc_photo")
 
-    # ===== PDF: в зависимости от режима — сжатие ИЛИ извлечение текста =====
+    @dp.message(F.text == "📎 Объединить PDF")
+    async def set_mode_merge(message: types.Message):
+        user_id = message.from_user.id
+        user_modes[user_id] = "merge"
+        user_merge_files[user_id] = []
+        await message.answer(
+            "Режим: 📎 объединение PDF.\n"
+            "1️⃣ Пришли 2–10 PDF-файлов подряд.\n"
+            "2️⃣ Когда закончишь — напиши текстом «Готово».\n\n"
+            "Я склею их в один PDF в порядке отправки.",
+            reply_markup=get_main_keyboard()
+        )
+        logger.info(f"Mode for {user_id} = merge")
+
+    # ===== PDF: в зависимости от режима =====
 
     @dp.message(F.document & (F.document.mime_type == "application/pdf"))
     async def handle_pdf(message: types.Message):
@@ -105,10 +136,25 @@ async def main():
         src_path = FILES_DIR / doc.file_name
         await bot.download_file(file.file_path, destination=src_path)
 
+        # --- РЕЖИМ: ОБЪЕДИНЕНИЕ PDF ---
+        if mode == "merge":
+            files_list = user_merge_files.setdefault(user_id, [])
+            if len(files_list) >= 10:
+                await message.answer("Можно добавить максимум 10 файлов для объединения.")
+                return
+
+            files_list.append(src_path)
+            await message.answer(
+                f"Файл добавлен для объединения. Сейчас в списке: {len(files_list)}.\n"
+                "Когда добавишь все нужные — напиши «Готово»."
+            )
+            logger.info(f"User {user_id} added PDF to merge list: {src_path}")
+            return
+
         # --- РЕЖИМ: PDF -> текст ---
         if mode == "pdf_text":
             await message.answer("Извлекаю текст из PDF...")
-            text_chunks = []
+            text_chunks: list[str] = []
 
             try:
                 reader = PdfReader(str(src_path))
@@ -123,7 +169,9 @@ async def main():
             full_text = "\n\n".join(text_chunks).strip()
 
             if not full_text:
-                await message.answer("В этом PDF не удалось найти текст (возможно, это скан).")
+                await message.answer(
+                    "В этом PDF не удалось найти текст (возможно, это скан без распознавания)."
+                )
                 return
 
             txt_name = Path(doc.file_name).with_suffix(".txt").name
@@ -308,6 +356,56 @@ async def main():
             caption="Фото сконвертировано в PDF."
         )
         logger.info("PHOTO converted to PDF")
+
+    # ===== ТЕКСТ "Готово" ДЛЯ ЗАПУСКА ОБЪЕДИНЕНИЯ PDF =====
+
+    @dp.message(F.text)
+    async def handle_text_generic(message: types.Message):
+        user_id = message.from_user.id
+        mode = user_modes.get(user_id, "compress")
+        text = (message.text or "").strip().lower()
+
+        # Запускаем объединение только в режиме merge
+        if mode == "merge" and text in ("готово", "/done", "/merge"):
+            files_list = user_merge_files.get(user_id, [])
+            if not files_list or len(files_list) < 2:
+                await message.answer("Нужно минимум 2 PDF-файла для объединения.")
+                return
+
+            await message.answer(
+                f"Объединяю {len(files_list)} PDF-файлов в один..."
+            )
+
+            # Имя итогового файла: <имя_первого>_merged.pdf
+            first_name = Path(files_list[0]).stem
+            merged_name = f"{first_name}_merged.pdf"
+            merged_path = FILES_DIR / merged_name
+
+            try:
+                merger = PdfMerger()
+                for p in files_list:
+                    merger.append(str(p))
+                merger.write(str(merged_path))
+                merger.close()
+            except Exception as e:
+                logger.error(f"PDF merge error: {e}")
+                await message.answer("Произошла ошибка при объединении PDF.")
+                return
+
+            await message.answer_document(
+                types.FSInputFile(merged_path),
+                caption=f"Готово: объединённый PDF ({len(files_list)} файлов)."
+            )
+
+            logger.info(f"User {user_id} got merged PDF: {merged_path}")
+            # очищаем список после объединения
+            user_merge_files[user_id] = []
+            return
+
+        # Во всех остальных случаях (текст не для merge) ничего особого не делаем
+        # Можно игнорировать или при желании отправить подсказку
+        # Здесь оставим игнор, чтобы не спамить.
+        return
 
     await dp.start_polling(bot)
 
