@@ -3,12 +3,13 @@ import subprocess
 from pathlib import Path
 import os
 import logging
+import zipfile
 
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from dotenv import load_dotenv
-from PyPDF2 import PdfReader, PdfMerger  # PDF -> текст и объединение
+from PyPDF2 import PdfReader, PdfMerger, PdfWriter  # PDF: текст, merge, split
 
 # грузим .env
 load_dotenv()
@@ -27,7 +28,7 @@ BASE_DIR = Path(__file__).parent
 FILES_DIR = BASE_DIR / "files"
 FILES_DIR.mkdir(exist_ok=True)
 
-# Режимы пользователя: user_id -> mode ("compress", "pdf_text", "doc_photo", "merge")
+# Режимы пользователя: user_id -> mode ("compress", "pdf_text", "doc_photo", "merge", "split")
 user_modes: dict[int, str] = {}
 
 # Для режима объединения: user_id -> список путей к PDF
@@ -48,10 +49,17 @@ async def main():
     def get_main_keyboard() -> ReplyKeyboardMarkup:
         return ReplyKeyboardMarkup(
             keyboard=[
-                [KeyboardButton(text="📉 Сжать PDF"),
-                 KeyboardButton(text="📎 Объединить PDF")],
-                [KeyboardButton(text="📝 PDF → текст")],
-                [KeyboardButton(text="📄 Документ/фото → PDF")],
+                [
+                    KeyboardButton(text="📉 Сжать PDF"),
+                    KeyboardButton(text="📎 Объединить PDF"),
+                ],
+                [
+                    KeyboardButton(text="✂️ Разделить PDF"),
+                    KeyboardButton(text="📝 PDF → текст"),
+                ],
+                [
+                    KeyboardButton(text="📄 Документ/фото → PDF"),
+                ],
             ],
             resize_keyboard=True
         )
@@ -64,12 +72,14 @@ async def main():
             "Выбери режим на клавиатуре ниже и пришли файл(ы):\n"
             "• 📉 Сжать PDF — уменьшить размер PDF\n"
             "• 📎 Объединить PDF — склеить несколько PDF в один\n"
+            "• ✂️ Разделить PDF — разбить PDF на отдельные страницы\n"
             "• 📝 PDF → текст — вытащить текст из PDF в .txt\n"
             "• 📄 Документ/фото → PDF — сделать PDF из DOC/XLS/PPT или картинки\n\n"
             "По умолчанию: сжатие PDF."
         )
-        user_modes[message.from_user.id] = "compress"
-        user_merge_files[message.from_user.id] = []
+        user_id = message.from_user.id
+        user_modes[user_id] = "compress"
+        user_merge_files[user_id] = []
         await message.answer(text, reply_markup=get_main_keyboard())
 
     # ===== ОБРАБОТКА ВЫБОРА РЕЖИМА КНОПКАМИ =====
@@ -121,6 +131,20 @@ async def main():
             reply_markup=get_main_keyboard()
         )
         logger.info(f"Mode for {user_id} = merge")
+
+    @dp.message(F.text == "✂️ Разделить PDF")
+    async def set_mode_split(message: types.Message):
+        user_id = message.from_user.id
+        user_modes[user_id] = "split"
+        user_merge_files[user_id] = []
+        await message.answer(
+            "Режим: ✂️ разделить PDF.\n"
+            "Пришли один PDF-файл, я разобью его по страницам.\n"
+            "Если страниц ≤ 10 — отправлю отдельные PDF для каждой страницы.\n"
+            "Если страниц больше — пришлю ZIP-архив.",
+            reply_markup=get_main_keyboard()
+        )
+        logger.info(f"Mode for {user_id} = split")
 
     # ===== PDF: в зависимости от режима =====
 
@@ -183,6 +207,71 @@ async def main():
                 caption="Готово: текст из PDF."
             )
             logger.info("PDF text extracted and sent")
+            return
+
+        # --- РЕЖИМ: РАЗДЕЛИТЬ PDF ПО СТРАНИЦАМ ---
+        if mode == "split":
+            await message.answer("Разделяю PDF по страницам...")
+
+            try:
+                reader = PdfReader(str(src_path))
+                num_pages = len(reader.pages)
+            except Exception as e:
+                logger.error(f"PDF split read error: {e}")
+                await message.answer("Не удалось прочитать PDF для разделения.")
+                return
+
+            if num_pages <= 1:
+                await message.answer("В этом PDF только одна страница, разделять нечего.")
+                return
+
+            base_name = Path(doc.file_name).stem
+            page_files: list[Path] = []
+
+            try:
+                for i in range(num_pages):
+                    writer = PdfWriter()
+                    writer.add_page(reader.pages[i])
+
+                    single_name = f"{base_name}_page_{i+1}.pdf"
+                    single_path = FILES_DIR / single_name
+                    with open(single_path, "wb") as f:
+                        writer.write(f)
+
+                    page_files.append(single_path)
+            except Exception as e:
+                logger.error(f"PDF split write error: {e}")
+                await message.answer("Произошла ошибка при разделении PDF на страницы.")
+                return
+
+            # Если страниц немного — отправляем отдельными файлами
+            if num_pages <= 10:
+                for i, p in enumerate(page_files, start=1):
+                    await message.answer_document(
+                        types.FSInputFile(p),
+                        caption=f"Страница {i} из {num_pages}"
+                    )
+                logger.info(f"PDF split into {num_pages} pages (sent separately) for user {user_id}")
+            else:
+                # Если страниц много — упакуем в ZIP
+                zip_name = f"{base_name}_pages.zip"
+                zip_path = FILES_DIR / zip_name
+
+                try:
+                    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
+                        for p in page_files:
+                            zf.write(p, arcname=p.name)
+                except Exception as e:
+                    logger.error(f"ZIP create error for split PDF: {e}")
+                    await message.answer("Не удалось упаковать страницы в ZIP.")
+                    return
+
+                await message.answer_document(
+                    types.FSInputFile(zip_path),
+                    caption=f"Готово: PDF разделён на {num_pages} страниц, отправляю ZIP-архив."
+                )
+                logger.info(f"PDF split into {num_pages} pages (zip) for user {user_id}")
+
             return
 
         # --- РЕЖИМ ПО УМОЛЧАНИЮ: сжатие PDF (Ghostscript) ---
@@ -376,7 +465,6 @@ async def main():
                 f"Объединяю {len(files_list)} PDF-файлов в один..."
             )
 
-            # Имя итогового файла: <имя_первого>_merged.pdf
             first_name = Path(files_list[0]).stem
             merged_name = f"{first_name}_merged.pdf"
             merged_path = FILES_DIR / merged_name
@@ -398,13 +486,10 @@ async def main():
             )
 
             logger.info(f"User {user_id} got merged PDF: {merged_path}")
-            # очищаем список после объединения
             user_merge_files[user_id] = []
             return
 
-        # Во всех остальных случаях (текст не для merge) ничего особого не делаем
-        # Можно игнорировать или при желании отправить подсказку
-        # Здесь оставим игнор, чтобы не спамить.
+        # прочий текст — игнорируем
         return
 
     await dp.start_polling(bot)
