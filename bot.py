@@ -174,7 +174,7 @@ async def main():
         )
         logger.info("DOC converted to PDF")
 
-    # Приём фото и конвертация в PDF
+    # Приём фото и конвертация в PDF, сохраняем имя файла
     @dp.message(F.photo)
     async def handle_photo(message: types.Message):
         logger.info(f"PHOTO from {message.from_user.id}")
@@ -183,10 +183,16 @@ async def main():
         photo = message.photo[-1]
         file = await bot.get_file(photo.file_id)
 
-        jpg_path = FILES_DIR / f"{photo.file_id}.jpg"
+        # Для обычного фото Telegram не даёт оригинальное имя файла.
+        # Делаем понятное имя: photo_<id>.jpg → photo_<id>.pdf
+        original_name = f"photo_{photo.file_id}.jpg"
+
+        jpg_path = FILES_DIR / original_name
         await bot.download_file(file.file_path, destination=jpg_path)
 
-        pdf_path = FILES_DIR / f"{photo.file_id}.pdf"
+        pdf_name = Path(original_name).with_suffix(".pdf")
+        pdf_path = FILES_DIR / pdf_name
+
         image = Image.open(jpg_path).convert("RGB")
         image.save(pdf_path, "PDF")
 
