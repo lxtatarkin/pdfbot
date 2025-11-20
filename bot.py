@@ -4,6 +4,7 @@ from pathlib import Path
 import os
 import logging
 import zipfile
+
 import fitz  # PyMuPDF
 import pytesseract
 
@@ -63,7 +64,7 @@ FILES_DIR.mkdir(exist_ok=True)
 # =========================
 #   USER STATES
 # =========================
-# mode: compress, pdf_text, doc_photo, merge, split
+# mode: compress, pdf_text, doc_photo, merge, split, ocr, searchable_pdf
 user_modes: dict[int, str] = {}
 
 # list of files for merging
@@ -120,6 +121,7 @@ async def main():
                 ],
                 [
                     KeyboardButton(text="🔍 OCR (PRO)"),
+                    KeyboardButton(text="🧠 Searchable PDF (PRO)"),
                 ],
             ],
             resize_keyboard=True
@@ -147,7 +149,9 @@ async def main():
             "• 📎 Объединить PDF\n"
             "• ✂️ Разделить PDF\n"
             "• 📝 PDF → текст\n"
-            "• 📄 Документ/фото → PDF\n\n"
+            "• 📄 Документ/фото → PDF\n"
+            "• 🔍 OCR (PRO) — распознавание сканов/фото в TXT\n"
+            "• 🧠 Searchable PDF (PRO) — сделать скан PDF-поисковым\n\n"
             f"Текущий тариф: <b>{tier}</b>\n"
             f"Макс размер файла: <b>{limit_mb}</b>\n\n"
             "По умолчанию: сжатие PDF.\n"
@@ -164,19 +168,23 @@ async def main():
         user_id = message.from_user.id
         if is_pro(user_id):
             await message.answer(
-                "✅ У вас уже PRO.\n"
-                f"Лимит: {format_mb(PRO_MAX_SIZE)}.",
+                "✅ У вас уже PRO.\n\n"
+                "Сейчас PRO даёт:\n"
+                "• Лимит размера файла до 100 МБ\n"
+                "• OCR (PDF и фото) → TXT\n"
+                "• 🧠 Searchable PDF (поисковый PDF из скана)\n\n"
+                "Спасибо за поддержку!",
                 parse_mode="HTML"
             )
         else:
             await message.answer(
                 "💼 <b>PRO-доступ</b>\n\n"
-                "Что даёт сейчас:\n"
-                "• Лимит до 100 МБ\n"
-                "• Приоритет в очереди\n\n"
-                "Скоро в PRO появятся:\n"
-                "• OCR (распознавание)\n"
-                "• Наложение водяных знаков\n"
+                "Сейчас в PRO:\n"
+                "• Лимит размера файла до 100 МБ\n"
+                "• OCR (PDF и фото) → TXT\n"
+                "• 🧠 Searchable PDF (поисковый PDF из скана)\n\n"
+                "В будущем появятся:\n"
+                "• Водяные знаки\n"
                 "• Расширенное редактирование PDF\n\n"
                 "Чтобы подключить PRO — напишите владельцу бота.",
                 parse_mode="HTML"
@@ -249,6 +257,24 @@ async def main():
                 "Пришли PDF-скан или изображение (фото/картинка). Я верну TXT-файл с распознанным текстом."
             )
 
+    @dp.message(F.text == "🧠 Searchable PDF (PRO)")
+    async def mode_searchable_pdf(message: types.Message):
+        user_id = message.from_user.id
+        user_modes[user_id] = "searchable_pdf"
+        user_merge_files[user_id] = []
+
+        if not is_pro(user_id):
+            await message.answer(
+                "Режим: 🧠 Searchable PDF.\n"
+                "Эта функция доступна только для PRO-пользователей.\n\n"
+                "Подробнее: /pro"
+            )
+        else:
+            await message.answer(
+                "Режим: 🧠 Searchable PDF.\n"
+                "Пришли PDF-скан (или фото — тогда сначала сделай DOC/IMG → PDF).\n"
+                "Я сделаю PDF, в котором текст можно выделять и искать."
+            )
 
     # ================================
     #   HANDLE PDF
@@ -268,7 +294,7 @@ async def main():
         await bot.download_file(file.file_path, destination=src_path)
 
         # =============================
-        # PRO: OCR ДЛЯ PDF
+        # PRO: OCR → TXT ДЛЯ PDF
         # =============================
         if mode == "ocr":
             if not is_pro(user_id):
@@ -288,12 +314,10 @@ async def main():
 
             try:
                 for page_index, page in enumerate(pdf_doc, start=1):
-                    # рендерим страницу в картинку
                     pix = page.get_pixmap(dpi=300)
                     img_path = FILES_DIR / f"ocr_{user_id}_{page_index}.png"
                     pix.save(img_path)
 
-                    # OCR по картинке
                     text_page = pytesseract.image_to_string(
                         str(img_path),
                         lang="rus+eng"
@@ -317,6 +341,69 @@ async def main():
                 caption="Готово: OCR-текст из PDF."
             )
             logger.info(f"OCR PDF done for user {user_id}")
+            return
+
+        # =============================
+        # PRO: Searchable PDF ДЛЯ PDF
+        # =============================
+        if mode == "searchable_pdf":
+            if not is_pro(user_id):
+                await message.answer("Searchable PDF доступен только для PRO-пользователей. См. /pro")
+                return
+
+            await message.answer("Делаю Searchable PDF (OCR + текстовый слой)...")
+
+            try:
+                pdf_doc = fitz.open(str(src_path))
+            except Exception as e:
+                logger.error(f"Searchable PDF open error: {e}")
+                await message.answer("Не удалось открыть PDF.")
+                return
+
+            page_pdf_paths: list[Path] = []
+
+            try:
+                for page_index, page in enumerate(pdf_doc, start=1):
+                    pix = page.get_pixmap(dpi=300)
+                    img_path = FILES_DIR / f"searchable_{user_id}_{page_index}.png"
+                    pix.save(img_path)
+
+                    pdf_bytes = pytesseract.image_to_pdf_or_hocr(
+                        str(img_path),
+                        extension="pdf",
+                        lang="rus+eng"
+                    )
+                    single_pdf_path = FILES_DIR / f"searchable_{user_id}_{page_index}.pdf"
+                    with open(single_pdf_path, "wb") as f:
+                        f.write(pdf_bytes)
+
+                    page_pdf_paths.append(single_pdf_path)
+            except Exception as e:
+                logger.error(f"Searchable PDF OCR error: {e}")
+                await message.answer("Ошибка при OCR для Searchable PDF.")
+                return
+
+            if not page_pdf_paths:
+                await message.answer("Не удалось создать ни одной страницы Searchable PDF.")
+                return
+
+            merged_path = FILES_DIR / f"{Path(doc.file_name).stem}_searchable.pdf"
+            try:
+                merger = PdfMerger()
+                for p in page_pdf_paths:
+                    merger.append(str(p))
+                merger.write(str(merged_path))
+                merger.close()
+            except Exception as e:
+                logger.error(f"Searchable PDF merge error: {e}")
+                await message.answer("Ошибка при сборке Searchable PDF.")
+                return
+
+            await message.answer_document(
+                types.FSInputFile(merged_path),
+                caption="Готово: Searchable PDF. Текст можно искать и копировать."
+            )
+            logger.info(f"Searchable PDF done for user {user_id}")
             return
 
         # =============================
@@ -516,6 +603,108 @@ async def main():
         return
 
     # ================================
+    #   PHOTO → OCR / PDF / Searchable PDF
+    # ================================
+    @dp.message(F.photo)
+    async def handle_photo(message: types.Message):
+        from PIL import Image
+
+        user_id = message.from_user.id
+        mode = user_modes.get(user_id, "compress")
+
+        photo = message.photo[-1]
+
+        # size check
+        if not await check_size_or_reject(message, photo.file_size):
+            return
+
+        file = await bot.get_file(photo.file_id)
+
+        jpg_name = f"photo_{photo.file_id}.jpg"
+        jpg_path = FILES_DIR / jpg_name
+        await bot.download_file(file.file_path, destination=jpg_path)
+
+        # === OCR (PRO) → TXT ===
+        if mode == "ocr":
+            if not is_pro(user_id):
+                await message.answer("OCR доступен только для PRO-пользователей. См. /pro")
+                return
+
+            await message.answer("Распознаю текст на фото (OCR)...")
+
+            try:
+                text = pytesseract.image_to_string(
+                    str(jpg_path),
+                    lang="rus+eng"
+                )
+            except Exception as e:
+                logger.error(f"OCR IMAGE error: {e}")
+                await message.answer("Ошибка при распознавании текста.")
+                return
+
+            text = (text or "").strip()
+            if not text:
+                await message.answer("Не удалось распознать текст (возможно, низкое качество изображения).")
+                return
+
+            txt_path = FILES_DIR / (Path(jpg_name).stem + "_ocr.txt")
+            txt_path.write_text(text, encoding="utf-8")
+
+            await message.answer_document(
+                types.FSInputFile(txt_path),
+                caption="Готово: OCR-текст с фото."
+            )
+            logger.info(f"OCR IMAGE done for user {user_id}")
+            return
+
+        # === Searchable PDF (PRO) для одного фото ===
+        if mode == "searchable_pdf":
+            if not is_pro(user_id):
+                await message.answer("Searchable PDF доступен только для PRO-пользователей. См. /pro")
+                return
+
+            await message.answer("Делаю Searchable PDF из фото...")
+
+            try:
+                pdf_bytes = pytesseract.image_to_pdf_or_hocr(
+                    str(jpg_path),
+                    extension="pdf",
+                    lang="rus+eng"
+                )
+            except Exception as e:
+                logger.error(f"Searchable PDF IMAGE OCR error: {e}")
+                await message.answer("Ошибка при OCR для Searchable PDF.")
+                return
+
+            pdf_path = FILES_DIR / (Path(jpg_name).stem + "_searchable.pdf")
+            with open(pdf_path, "wb") as f:
+                f.write(pdf_bytes)
+
+            await message.answer_document(
+                types.FSInputFile(pdf_path),
+                caption="Готово: Searchable PDF из фото."
+            )
+            logger.info(f"Searchable PDF IMAGE done for user {user_id}")
+            return
+
+        # === Остальные режимы: фото → PDF ===
+        pdf_path = FILES_DIR / (Path(jpg_name).stem + ".pdf")
+
+        try:
+            img = Image.open(jpg_path).convert("RGB")
+            img.save(pdf_path, "PDF")
+        except Exception as e:
+            logger.error(f"PHOTO->PDF error: {e}")
+            await message.answer("Не удалось конвертировать фото в PDF.")
+            return
+
+        await message.answer_document(
+            types.FSInputFile(pdf_path),
+            caption="Фото сконвертировано в PDF."
+        )
+        logger.info(f"PHOTO converted to PDF for user {user_id}")
+
+    # ================================
     #   TEXT COMMAND: "Готово" (MERGE)
     # ================================
     @dp.message(F.text)
@@ -552,85 +741,6 @@ async def main():
             return
 
         return
-
-    # ================================
-    #   PHOTO → OCR или PDF
-    # ================================
-    @dp.message(F.photo)
-    async def handle_photo(message: types.Message):
-        from PIL import Image
-
-        user_id = message.from_user.id
-        mode = user_modes.get(user_id, "compress")
-
-        # берём самое большое по размеру фото
-        photo = message.photo[-1]
-
-        # проверяем лимит размера
-        if not await check_size_or_reject(message, photo.file_size):
-            return
-
-        file = await bot.get_file(photo.file_id)
-
-        # сохраняем как JPG
-        jpg_name = f"photo_{photo.file_id}.jpg"
-        jpg_path = FILES_DIR / jpg_name
-        await bot.download_file(file.file_path, destination=jpg_path)
-
-        # === РЕЖИМ OCR (PRO) ===
-        if mode == "ocr":
-            if not is_pro(user_id):
-                await message.answer(
-                    "OCR доступен только для PRO-пользователей. См. /pro"
-                )
-                return
-
-            await message.answer("Распознаю текст на фото (OCR)...")
-
-            try:
-                text = pytesseract.image_to_string(
-                    str(jpg_path),
-                    lang="rus+eng"
-                )
-            except Exception as e:
-                logger.error(f"OCR IMAGE error: {e}")
-                await message.answer("Ошибка при распознавании текста.")
-                return
-
-            text = (text or "").strip()
-            if not text:
-                await message.answer(
-                    "Не удалось распознать текст (возможно, низкое качество изображения)."
-                )
-                return
-
-            txt_path = FILES_DIR / (Path(jpg_name).stem + "_ocr.txt")
-            txt_path.write_text(text, encoding="utf-8")
-
-            await message.answer_document(
-                types.FSInputFile(txt_path),
-                caption="Готово: OCR-текст с фото."
-            )
-            logger.info(f"OCR IMAGE done for user {user_id}")
-            return
-
-        # === Остальные режимы: как раньше — просто фото → PDF ===
-        pdf_path = FILES_DIR / (Path(jpg_name).stem + ".pdf")
-
-        try:
-            img = Image.open(jpg_path).convert("RGB")
-            img.save(pdf_path, "PDF")
-        except Exception as e:
-            logger.error(f"PHOTO->PDF error: {e}")
-            await message.answer("Не удалось конвертировать фото в PDF.")
-            return
-
-        await message.answer_document(
-            types.FSInputFile(pdf_path),
-            caption="Фото сконвертировано в PDF."
-        )
-        logger.info(f"PHOTO converted to PDF for user {user_id}")
-
 
     # ================================
     #   START BOT
