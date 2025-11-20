@@ -554,6 +554,85 @@ async def main():
         return
 
     # ================================
+    #   PHOTO → OCR или PDF
+    # ================================
+    @dp.message(F.photo)
+    async def handle_photo(message: types.Message):
+        from PIL import Image
+
+        user_id = message.from_user.id
+        mode = user_modes.get(user_id, "compress")
+
+        # берём самое большое по размеру фото
+        photo = message.photo[-1]
+
+        # проверяем лимит размера
+        if not await check_size_or_reject(message, photo.file_size):
+            return
+
+        file = await bot.get_file(photo.file_id)
+
+        # сохраняем как JPG
+        jpg_name = f"photo_{photo.file_id}.jpg"
+        jpg_path = FILES_DIR / jpg_name
+        await bot.download_file(file.file_path, destination=jpg_path)
+
+        # === РЕЖИМ OCR (PRO) ===
+        if mode == "ocr":
+            if not is_pro(user_id):
+                await message.answer(
+                    "OCR доступен только для PRO-пользователей. См. /pro"
+                )
+                return
+
+            await message.answer("Распознаю текст на фото (OCR)...")
+
+            try:
+                text = pytesseract.image_to_string(
+                    str(jpg_path),
+                    lang="rus+eng"
+                )
+            except Exception as e:
+                logger.error(f"OCR IMAGE error: {e}")
+                await message.answer("Ошибка при распознавании текста.")
+                return
+
+            text = (text or "").strip()
+            if not text:
+                await message.answer(
+                    "Не удалось распознать текст (возможно, низкое качество изображения)."
+                )
+                return
+
+            txt_path = FILES_DIR / (Path(jpg_name).stem + "_ocr.txt")
+            txt_path.write_text(text, encoding="utf-8")
+
+            await message.answer_document(
+                types.FSInputFile(txt_path),
+                caption="Готово: OCR-текст с фото."
+            )
+            logger.info(f"OCR IMAGE done for user {user_id}")
+            return
+
+        # === Остальные режимы: как раньше — просто фото → PDF ===
+        pdf_path = FILES_DIR / (Path(jpg_name).stem + ".pdf")
+
+        try:
+            img = Image.open(jpg_path).convert("RGB")
+            img.save(pdf_path, "PDF")
+        except Exception as e:
+            logger.error(f"PHOTO->PDF error: {e}")
+            await message.answer("Не удалось конвертировать фото в PDF.")
+            return
+
+        await message.answer_document(
+            types.FSInputFile(pdf_path),
+            caption="Фото сконвертировано в PDF."
+        )
+        logger.info(f"PHOTO converted to PDF for user {user_id}")
+
+
+    # ================================
     #   START BOT
     # ================================
     await dp.start_polling(bot)
