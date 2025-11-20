@@ -2,6 +2,7 @@ import asyncio
 import subprocess
 from pathlib import Path
 import os
+import logging
 
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
@@ -10,6 +11,14 @@ from dotenv import load_dotenv
 # грузим .env
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
+
+# Логирование
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s"
+)
+
+logger = logging.getLogger(__name__)
 
 # Папка для файлов
 BASE_DIR = Path(__file__).parent
@@ -21,8 +30,11 @@ async def main():
     bot = Bot(token=TOKEN)
     dp = Dispatcher()
 
+    logger.info("Bot started on Railway")
+
     @dp.message(Command("start"))
     async def start_cmd(message: types.Message):
+        logger.info(f"/start from {message.from_user.id} ({message.from_user.username})")
         text = (
             "👋 Привет! Я конвертирую файлы в PDF прямо в Telegram.\n\n"
             "Что я уже умею:\n"
@@ -37,6 +49,7 @@ async def main():
         # === Приём PDF и сжатие ===
     @dp.message(F.document & (F.document.mime_type == "application/pdf"))
     async def handle_pdf(message: types.Message):
+        logger.info(f"PDF received for compression from {message.from_user.id}")
         from pikepdf import Pdf
 
         doc = message.document
@@ -58,12 +71,14 @@ async def main():
                 types.FSInputFile(compressed_path),
                 caption="Готово: PDF-файл сжат."
             )
+            logger.info("PDF successfully compressed")
 
         except Exception as e:
             print(f"PDF compress error: {e}")
             await message.answer(
                 "Не удалось сжать PDF, отправляю оригинальный файл."
             )
+            logger.error(f"PDF compress error: {e}")
             await message.answer_document(
                 types.FSInputFile(src_path),
                 caption="Возвращаю оригинальный PDF."
@@ -72,6 +87,7 @@ async def main():
     # === ПОТОМ: приём документов (КРОМЕ PDF) и конвертация в PDF ===
     @dp.message(F.document & (F.document.mime_type != "application/pdf"))
     async def handle_document(message: types.Message):
+        logger.info(f"DOC ({ext}) from {message.from_user.id}")
         doc = message.document
         filename = doc.file_name or "file"
         ext = filename.split(".")[-1].lower()
@@ -122,10 +138,12 @@ async def main():
             types.FSInputFile(pdf_path),
             caption="Готово: документ сконвертирован в PDF."
         )
+        logger.info("DOC converted to PDF")
 
     # Приём фото и конвертация в PDF
     @dp.message(F.photo)
     async def handle_photo(message: types.Message):
+        logger.info(f"PHOTO from {message.from_user.id}")
         from PIL import Image  # импорт внутри хэндлера
 
         photo = message.photo[-1]  # самое большое по размеру
@@ -145,6 +163,7 @@ async def main():
             types.FSInputFile(pdf_path),
             caption="Фото сконвертировано в PDF."
         )
+        logger.info("PHOTO converted to PDF")
 
     await dp.start_polling(bot)
 
