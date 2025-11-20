@@ -51,11 +51,9 @@ async def main():
         )
         await message.answer(text)
 
-    # === Приём PDF и сжатие ===
+    # === Приём PDF и глубокое сжатие (Ghostscript) ===
     @dp.message(F.document & (F.document.mime_type == "application/pdf"))
     async def handle_pdf(message: types.Message):
-        from pikepdf import Pdf
-
         logger.info(f"PDF received for compression from {message.from_user.id}")
 
         doc = message.document
@@ -64,29 +62,45 @@ async def main():
         src_path = FILES_DIR / doc.file_name
         await bot.download_file(file.file_path, destination=src_path)
 
-        await message.answer("Сжимаю PDF...")
+        await message.answer("Сжимаю PDF... (глубокое сжатие)")
 
         compressed_path = FILES_DIR / f"compressed_{doc.file_name}"
 
+        # Команда Ghostscript
+        gs_cmd = [
+            "gs",
+            "-sDEVICE=pdfwrite",
+            "-dCompatibilityLevel=1.4",
+            "-dPDFSETTINGS=/ebook",   # варианты: /screen /ebook /printer /prepress
+            "-dNOPAUSE",
+            "-dQUIET",
+            "-dBATCH",
+            f"-sOutputFile={compressed_path}",
+            str(src_path)
+        ]
+
         try:
-            with Pdf.open(src_path) as pdf:
-                pdf.save(compressed_path)
-
-            await message.answer_document(
-                types.FSInputFile(compressed_path),
-                caption="Готово: PDF-файл сжат."
+            result = subprocess.run(
+                gs_cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
             )
-            logger.info("PDF successfully compressed")
-
         except Exception as e:
-            logger.error(f"PDF compress error: {e}")
-            await message.answer(
-                "Не удалось сжать PDF, отправляю оригинальный файл."
-            )
-            await message.answer_document(
-                types.FSInputFile(src_path),
-                caption="Возвращаю оригинальный PDF."
-            )
+            logger.error(f"Ghostscript subprocess error: {e}")
+            await message.answer("Ошибка Ghostscript при сжатии PDF.")
+            return
+
+        if not compressed_path.exists():
+            logger.error("Ghostscript did not create compressed file")
+            await message.answer("Не удалось сжать PDF.")
+            return
+
+        await message.answer_document(
+            types.FSInputFile(compressed_path),
+            caption="Готово: PDF-файл глубоко сжат."
+        )
+        logger.info("PDF deeply compressed with Ghostscript")
 
     # === Приём документов (КРОМЕ PDF) и конвертация в PDF ===
     @dp.message(F.document & (F.document.mime_type != "application/pdf"))
