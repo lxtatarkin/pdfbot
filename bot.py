@@ -71,7 +71,12 @@ FILES_DIR.mkdir(exist_ok=True)
 # =========================
 #   USER STATES
 # =========================
-# mode: compress, pdf_text, doc_photo, merge, split, ocr, searchable_pdf, watermark_*, pages
+# mode:
+#   compress, pdf_text, doc_photo, merge, split, ocr, searchable_pdf,
+#   watermark, watermark_wait_text, watermark_wait_style,
+#   pages_wait_pdf, pages_menu,
+#   pages_rotate_wait_pages, pages_rotate_wait_angle,
+#   pages_delete_wait_pages, pages_extract_wait_pages
 user_modes: dict[int, str] = {}
 
 # list of files for merging
@@ -80,7 +85,9 @@ user_merge_files: dict[int, list[Path]] = {}
 # состояние для водяных знаков: user_id -> {"pdf_path": Path, "text": str, "pos": "11", "mosaic": bool}
 user_watermark_state: dict[int, dict] = {}
 
-# состояние для редактора страниц: user_id -> {"pdf_path": Path, "pages": int}
+# состояние для редактора страниц: user_id -> {"pdf_path": Path, "pages": int, ...}
+# доп. поля по ситуации:
+#   "rotate_pages": list[int]
 user_pages_state: dict[int, dict] = {}
 
 
@@ -245,6 +252,58 @@ def rotate_page_inplace(page, angle: int):
             page.rotateClockwise(180)
         elif angle == 270:
             page.rotateCounterClockwise(90)
+
+
+def get_pages_menu_keyboard() -> InlineKeyboardMarkup:
+    """
+    Основное меню редактора страниц.
+    """
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="🔄 Поворот страниц",
+                    callback_data="pages_action:rotate"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🗑 Удалить страницы",
+                    callback_data="pages_action:delete"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📤 Извлечь страницы",
+                    callback_data="pages_action:extract"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="❌ Отмена",
+                    callback_data="pages_action:cancel"
+                )
+            ],
+        ]
+    )
+
+
+def get_rotate_keyboard() -> InlineKeyboardMarkup:
+    """
+    Клавиатура выбора угла поворота.
+    """
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="+90°", callback_data="pages_rotate_angle:+90"),
+                InlineKeyboardButton(text="-90°", callback_data="pages_rotate_angle:-90"),
+                InlineKeyboardButton(text="180°", callback_data="pages_rotate_angle:180"),
+            ],
+            [
+                InlineKeyboardButton(text="↩️ Назад к меню", callback_data="pages_back_to_menu")
+            ]
+        ]
+    )
 
 
 # =========================
@@ -477,29 +536,23 @@ async def main():
     @dp.message(F.text == "🧩 Редактор страниц (PRO)")
     async def mode_pages(message: types.Message):
         user_id = message.from_user.id
-        user_modes[user_id] = "pages"
         user_merge_files[user_id] = []
         user_watermark_state[user_id] = {}
         user_pages_state[user_id] = {}
 
         if not is_pro(user_id):
+            user_modes[user_id] = "compress"
             await message.answer(
                 "Режим: 🧩 Редактор страниц PDF.\n"
                 "Доступно только для PRO-пользователей.\n\n"
-                "В этом режиме можно поворачивать, удалять и извлекать страницы без ограничений.\n"
+                "В этом режиме можно поворачивать, удалять и извлекать страницы.\n"
                 "Подробнее: /pro"
             )
         else:
+            user_modes[user_id] = "pages_wait_pdf"
             await message.answer(
                 "Режим: 🧩 Редактор страниц PDF.\n"
-                "1) Пришли PDF.\n"
-                "2) Потом отправь команду, например:\n"
-                "   • <code>rotate 90</code> — повернуть все страницы на 90° по часовой\n"
-                "   • <code>rotate -90 1-3,5</code> — повернуть страницы 1–3 и 5\n"
-                "   • <code>delete 2,4-6</code> — удалить страницы 2 и 4–6\n"
-                "   • <code>extract 3-10</code> — оставить только страницы 3–10\n\n"
-                "Команды можно отправлять несколько раз подряд — буду обновлять PDF.",
-                parse_mode="HTML",
+                "Пришли PDF, страницы которого нужно отредактировать.",
                 reply_markup=get_main_keyboard()
             )
 
@@ -541,6 +594,37 @@ async def main():
         file = await bot.get_file(doc_msg.file_id)
         src_path = FILES_DIR / doc_msg.file_name
         await bot.download_file(file.file_path, destination=src_path)
+
+        # =============================
+        # РЕДАКТОР СТРАНИЦ: новый PDF
+        # =============================
+        if mode.startswith("pages"):
+            if not is_pro(user_id):
+                await message.answer("Редактор страниц доступен только для PRO-пользователей. См. /pro")
+                return
+
+            try:
+                reader = PdfReader(str(src_path))
+                num_pages = len(reader.pages)
+            except Exception as e:
+                logger.error(f"Pages editor open error: {e}")
+                await message.answer("Не удалось открыть PDF.")
+                return
+
+            user_pages_state[user_id] = {
+                "pdf_path": src_path,
+                "pages": num_pages,
+            }
+            user_modes[user_id] = "pages_menu"
+
+            await message.answer(
+                f"Редактор страниц PDF.\n"
+                f"Файл: {doc_msg.file_name}\n"
+                f"Страниц в документе: {num_pages}\n\n"
+                "Выбери действие:",
+                reply_markup=get_pages_menu_keyboard()
+            )
+            return
 
         # =============================
         # PRO: OCR ДЛЯ PDF
@@ -643,39 +727,6 @@ async def main():
                 caption="Готово: searchable PDF. Теперь текст можно выделять и искать."
             )
             logger.info(f"Searchable PDF done for user {user_id}")
-            return
-
-        # =============================
-        # PAGES MODE (rotate/delete/extract)
-        # =============================
-        if mode == "pages":
-            if not is_pro(user_id):
-                await message.answer("Операции со страницами доступны только для PRO-пользователей. См. /pro")
-                return
-
-            try:
-                reader = PdfReader(str(src_path))
-                num_pages = len(reader.pages)
-            except Exception as e:
-                logger.error(f"Pages mode open error: {e}")
-                await message.answer("Не удалось открыть PDF.")
-                return
-
-            user_pages_state[user_id] = {
-                "pdf_path": src_path,
-                "pages": num_pages,
-            }
-
-            await message.answer(
-                f"PDF получен. Страниц: {num_pages}.\n\n"
-                "Теперь отправь команду:\n"
-                "• <code>rotate 90</code> — повернуть все страницы на 90° по часовой\n"
-                "• <code>rotate -90 1-3,5</code> — повернуть указанные страницы\n"
-                "• <code>delete 2,4-6</code> — удалить страницы 2 и 4–6\n"
-                "• <code>extract 3-10</code> — оставить только страницы 3–10\n\n"
-                "После каждой операции я отправлю новый PDF и обновлю документ для дальнейших действий.",
-                parse_mode="HTML"
-            )
             return
 
         # =============================
@@ -898,148 +949,175 @@ async def main():
     async def handle_text(message: types.Message):
         user_id = message.from_user.id
         mode = user_modes.get(user_id, "compress")
-        text_val = (message.text or "").strip().lower()
+        text_raw = (message.text or "").strip()
+        text_val = text_raw.lower()
 
-        # ===== PAGES MODE: команды rotate/delete/extract =====
-        if mode == "pages":
+        # ===== РЕДАКТОР СТРАНИЦ: ввод диапазона для ПОВОРОТА =====
+        if mode == "pages_rotate_wait_pages":
             state = user_pages_state.get(user_id) or {}
             pdf_path = state.get("pdf_path")
             num_pages = state.get("pages")
 
             if not pdf_path or not Path(pdf_path).exists() or not num_pages:
-                await message.answer("Нет загруженного PDF. Сначала пришли файл в режиме 🧩 Редактор страниц (PRO).")
+                await message.answer("Нет загруженного PDF. Сначала выбери 🧩 Редактор страниц и пришли файл.")
+                user_modes[user_id] = "compress"
                 return
 
-            parts = (message.text or "").strip().split(maxsplit=2)
-            if not parts:
-                await message.answer("Команда пуста. Примеры: rotate 90, delete 2-5, extract 3-10")
-                return
+            if text_val == "all":
+                pages = list(range(1, num_pages + 1))
+            else:
+                pages = parse_page_range(text_raw, num_pages)
 
-            cmd = parts[0].lower()
-            if cmd not in ("rotate", "delete", "extract"):
+            if not pages:
                 await message.answer(
-                    "Неизвестная команда.\n"
-                    "Используй: rotate, delete или extract.\n"
-                    "Примеры:\n"
-                    "• rotate 90\n"
-                    "• rotate -90 1-3,5\n"
-                    "• delete 2,4-6\n"
-                    "• extract 3-10"
+                    "Не удалось распознать страницы.\n"
+                    "Примеры: 2, 1-3, 1,3,5-7 или all."
+                )
+                return
+
+            state["rotate_pages"] = pages
+            user_pages_state[user_id] = state
+            user_modes[user_id] = "pages_rotate_wait_angle"
+
+            await message.answer(
+                f"Страницы для поворота: {text_raw}.\n"
+                "Теперь выбери угол поворота:",
+                reply_markup=get_rotate_keyboard()
+            )
+            return
+
+        # ===== РЕДАКТОР СТРАНИЦ: ожидание угла (просим пользоваться кнопками) =====
+        if mode == "pages_rotate_wait_angle":
+            await message.answer("Выбери угол поворота с помощью кнопок под предыдущим сообщением.")
+            return
+
+        # ===== РЕДАКТОР СТРАНИЦ: ввод диапазона для УДАЛЕНИЯ =====
+        if mode == "pages_delete_wait_pages":
+            state = user_pages_state.get(user_id) or {}
+            pdf_path = state.get("pdf_path")
+            num_pages = state.get("pages")
+
+            if not pdf_path or not Path(pdf_path).exists() or not num_pages:
+                await message.answer("Нет загруженного PDF. Сначала выбери 🧩 Редактор страниц и пришли файл.")
+                user_modes[user_id] = "compress"
+                return
+
+            pages = parse_page_range(text_raw, num_pages)
+            if not pages:
+                await message.answer(
+                    "Не удалось распознать страницы для удаления.\n"
+                    "Примеры: 2, 1-3, 1,3,5-7."
+                )
+                return
+
+            delete_set = set(pages)
+
+            try:
+                reader = PdfReader(str(pdf_path))
+            except Exception as e:
+                logger.error(f"Pages delete open error: {e}")
+                await message.answer("Не удалось открыть PDF.")
+                return
+
+            writer = PdfWriter()
+            kept = 0
+            for idx, page in enumerate(reader.pages, start=1):
+                if idx in delete_set:
+                    continue
+                writer.add_page(page)
+                kept += 1
+
+            if kept == 0:
+                await message.answer("После удаления не осталось ни одной страницы. Операция отменена.")
+                user_modes[user_id] = "pages_menu"
+                return
+
+            out_path = FILES_DIR / f"{Path(pdf_path).stem}_deleted.pdf"
+            try:
+                with open(out_path, "wb") as f:
+                    writer.write(f)
+            except Exception as e:
+                logger.error(f"Pages delete write error: {e}")
+                await message.answer("Ошибка при сохранении PDF после удаления страниц.")
+                return
+
+            await message.answer_document(
+                types.FSInputFile(out_path),
+                caption=f"Готово: удалены страницы {text_raw}. Осталось страниц: {kept}."
+            )
+
+            user_pages_state[user_id] = {
+                "pdf_path": out_path,
+                "pages": kept,
+            }
+            user_modes[user_id] = "pages_menu"
+
+            await message.answer(
+                "Можно продолжить редактирование страниц:\n"
+                "— Поворот\n"
+                "— Удаление\n"
+                "— Извлечение\n\n"
+                "Выбери действие:",
+                reply_markup=get_pages_menu_keyboard()
+            )
+            return
+
+        # ===== РЕДАКТОР СТРАНИЦ: ввод диапазона для ИЗВЛЕЧЕНИЯ =====
+        if mode == "pages_extract_wait_pages":
+            state = user_pages_state.get(user_id) or {}
+            pdf_path = state.get("pdf_path")
+            num_pages = state.get("pages")
+
+            if not pdf_path or not Path(pdf_path).exists() or not num_pages:
+                await message.answer("Нет загруженного PDF. Сначала выбери 🧩 Редактор страниц и пришли файл.")
+                user_modes[user_id] = "compress"
+                return
+
+            if text_val == "all":
+                pages = list(range(1, num_pages + 1))
+            else:
+                pages = parse_page_range(text_raw, num_pages)
+
+            if not pages:
+                await message.answer(
+                    "Не удалось распознать страницы для извлечения.\n"
+                    "Примеры: 2, 1-3, 1,3,5-7 или all."
                 )
                 return
 
             try:
                 reader = PdfReader(str(pdf_path))
             except Exception as e:
-                logger.error(f"Pages mode re-open error: {e}")
+                logger.error(f"Pages extract open error: {e}")
                 await message.answer("Не удалось открыть PDF.")
                 return
 
-            out_path: Path
+            writer = PdfWriter()
+            for p in pages:
+                writer.add_page(reader.pages[p - 1])
 
-            if cmd == "rotate":
-                if len(parts) < 2:
-                    await message.answer("Нужно указать угол: rotate 90 или rotate -90 1-3,5")
-                    return
-
-                try:
-                    angle = int(parts[1])
-                except ValueError:
-                    await message.answer("Неверный угол. Пример: rotate 90 или rotate -90 1-3,5")
-                    return
-
-                if angle not in (-270, -180, -90, 90, 180, 270):
-                    await message.answer("Поддерживаются только углы кратные 90° (…,-180,-90,90,180,270).")
-                    return
-
-                if len(parts) == 3:
-                    pages = parse_page_range(parts[2], num_pages)
-                    if not pages:
-                        await message.answer("Не удалось распознать диапазон страниц.")
-                        return
-                    pages_set = set(pages)
-                else:
-                    pages_set = set(range(1, num_pages + 1))
-
-                writer = PdfWriter()
-                for idx, page in enumerate(reader.pages, start=1):
-                    if idx in pages_set:
-                        rotate_page_inplace(page, angle)
-                    writer.add_page(page)
-
-                out_path = FILES_DIR / f"{Path(pdf_path).stem}_rotated.pdf"
+            safe_suffix = text_raw.replace(",", "_").replace("-", "_").replace(" ", "")
+            out_path = FILES_DIR / f"{Path(pdf_path).stem}_extract_{safe_suffix}.pdf"
+            try:
                 with open(out_path, "wb") as f:
                     writer.write(f)
+            except Exception as e:
+                logger.error(f"Pages extract write error: {e}")
+                await message.answer("Ошибка при сохранении извлечённых страниц.")
+                return
 
-                await message.answer_document(
-                    types.FSInputFile(out_path),
-                    caption=f"Готово: страницы повёрнуты. Всего страниц: {num_pages}."
-                )
+            await message.answer_document(
+                types.FSInputFile(out_path),
+                caption=f"Готово: извлечены страницы {text_raw} в отдельный PDF."
+            )
 
-            elif cmd == "delete":
-                if len(parts) < 2:
-                    await message.answer("Нужно указать страницы: delete 2,4-6")
-                    return
-
-                pages = parse_page_range(parts[1], num_pages)
-                if not pages:
-                    await message.answer("Не удалось распознать страницы для удаления.")
-                    return
-                delete_set = set(pages)
-
-                writer = PdfWriter()
-                kept = 0
-                for idx, page in enumerate(reader.pages, start=1):
-                    if idx in delete_set:
-                        continue
-                    writer.add_page(page)
-                    kept += 1
-
-                if kept == 0:
-                    await message.answer("После удаления не осталось ни одной страницы. Операция отменена.")
-                    return
-
-                out_path = FILES_DIR / f"{Path(pdf_path).stem}_deleted.pdf"
-                with open(out_path, "wb") as f:
-                    writer.write(f)
-
-                await message.answer_document(
-                    types.FSInputFile(out_path),
-                    caption=f"Готово: удалены страницы {parts[1]}. Осталось страниц: {kept}."
-                )
-
-                num_pages = kept
-
-            elif cmd == "extract":
-                if len(parts) < 2:
-                    await message.answer("Нужно указать диапазон: extract 3-10")
-                    return
-
-                pages = parse_page_range(parts[1], num_pages)
-                if not pages:
-                    await message.answer("Не удалось распознать диапазон страниц.")
-                    return
-
-                writer = PdfWriter()
-                for p in pages:
-                    writer.add_page(reader.pages[p - 1])
-
-                safe_suffix = parts[1].replace(",", "_").replace("-", "_")
-                out_path = FILES_DIR / f"{Path(pdf_path).stem}_extract_{safe_suffix}.pdf"
-                with open(out_path, "wb") as f:
-                    writer.write(f)
-
-                await message.answer_document(
-                    types.FSInputFile(out_path),
-                    caption=f"Готово: извлечены страницы {parts[1]}."
-                )
-
-                num_pages = len(pages)
-
-            user_pages_state[user_id] = {
-                "pdf_path": out_path,
-                "pages": num_pages,
-            }
+            # основной документ не меняем
+            user_modes[user_id] = "pages_menu"
+            await message.answer(
+                "Можно продолжить редактирование исходного файла.\n"
+                "Выбери действие:",
+                reply_markup=get_pages_menu_keyboard()
+            )
             return
 
         # ===== ВОДЯНОЙ ЗНАК: шаг 2 — текст =====
@@ -1180,6 +1258,208 @@ async def main():
 
         user_watermark_state[user_id] = {}
         user_modes[user_id] = "compress"
+
+    # ================================
+    #   CALLBACKS: PAGES EDITOR
+    # ================================
+    @dp.callback_query(F.data == "pages_action:rotate")
+    async def pages_rotate_action(callback: types.CallbackQuery):
+        user_id = callback.from_user.id
+        state = user_pages_state.get(user_id) or {}
+        pdf_path = state.get("pdf_path")
+        num_pages = state.get("pages")
+
+        if not is_pro(user_id):
+            await callback.answer("Только для PRO.", show_alert=True)
+            return
+
+        if not pdf_path or not Path(pdf_path).exists() or not num_pages:
+            await callback.answer("Нет загруженного PDF. Сначала пришли файл в режиме редактора.", show_alert=True)
+            return
+
+        if num_pages == 1:
+            # одна страница — сразу просим угол
+            state["rotate_pages"] = [1]
+            user_pages_state[user_id] = state
+            user_modes[user_id] = "pages_rotate_wait_angle"
+
+            await callback.message.answer(
+                "В файле 1 страница.\n"
+                "Выбери угол поворота:",
+                reply_markup=get_rotate_keyboard()
+            )
+        else:
+            # несколько страниц — сначала спрашиваем какие
+            user_modes[user_id] = "pages_rotate_wait_pages"
+            await callback.message.answer(
+                f"Страниц в файле: {num_pages}.\n\n"
+                "Какие страницы нужно повернуть?\n\n"
+                "Примеры:\n"
+                "• 2            — только 2 страницу\n"
+                "• 1-3          — страницы 1,2,3\n"
+                "• 1,3,5-7      — страницы 1,3,5,6,7\n"
+                "• all          — все страницы"
+            )
+
+        await callback.answer()
+
+    @dp.callback_query(F.data == "pages_action:delete")
+    async def pages_delete_action(callback: types.CallbackQuery):
+        user_id = callback.from_user.id
+        state = user_pages_state.get(user_id) or {}
+        pdf_path = state.get("pdf_path")
+        num_pages = state.get("pages")
+
+        if not is_pro(user_id):
+            await callback.answer("Только для PRO.", show_alert=True)
+            return
+
+        if not pdf_path or not Path(pdf_path).exists() or not num_pages:
+            await callback.answer("Нет загруженного PDF. Сначала пришли файл в режиме редактора.", show_alert=True)
+            return
+
+        user_modes[user_id] = "pages_delete_wait_pages"
+        await callback.message.answer(
+            f"Страниц в файле: {num_pages}.\n\n"
+            "Какие страницы удалить?\n\n"
+            "Примеры:\n"
+            "• 2            — только 2 страницу\n"
+            "• 1-3          — страницы 1,2,3\n"
+            "• 1,3,5-7      — страницы 1,3,5,6,7"
+        )
+        await callback.answer()
+
+    @dp.callback_query(F.data == "pages_action:extract")
+    async def pages_extract_action(callback: types.CallbackQuery):
+        user_id = callback.from_user.id
+        state = user_pages_state.get(user_id) or {}
+        pdf_path = state.get("pdf_path")
+        num_pages = state.get("pages")
+
+        if not is_pro(user_id):
+            await callback.answer("Только для PRO.", show_alert=True)
+            return
+
+        if not pdf_path or not Path(pdf_path).exists() or not num_pages:
+            await callback.answer("Нет загруженного PDF. Сначала пришли файл в режиме редактора.", show_alert=True)
+            return
+
+        user_modes[user_id] = "pages_extract_wait_pages"
+        await callback.message.answer(
+            f"Страниц в файле: {num_pages}.\n\n"
+            "Какие страницы извлечь в новый PDF?\n\n"
+            "Примеры:\n"
+            "• 2            — только 2 страницу\n"
+            "• 1-3          — страницы 1,2,3\n"
+            "• 1,3,5-7      — страницы 1,3,5,6,7\n"
+            "• all          — весь документ (копия)"
+        )
+        await callback.answer()
+
+    @dp.callback_query(F.data == "pages_action:cancel")
+    async def pages_cancel_action(callback: types.CallbackQuery):
+        user_id = callback.from_user.id
+        user_pages_state[user_id] = {}
+        user_modes[user_id] = "compress"
+
+        await callback.message.answer(
+            "Редактирование страниц завершено.\n"
+            "Можно выбрать другой режим или прислать PDF для сжатия."
+        )
+        await callback.answer()
+
+    @dp.callback_query(F.data.startswith("pages_rotate_angle:"))
+    async def pages_rotate_angle_callback(callback: types.CallbackQuery):
+        user_id = callback.from_user.id
+        data = callback.data.split(":", 1)[1]  # "+90" / "-90" / "180"
+        try:
+            angle = int(data)
+        except ValueError:
+            await callback.answer("Некорректный угол.", show_alert=True)
+            return
+
+        state = user_pages_state.get(user_id) or {}
+        pdf_path = state.get("pdf_path")
+        num_pages = state.get("pages")
+
+        if not is_pro(user_id):
+            await callback.answer("Только для PRO.", show_alert=True)
+            return
+
+        if not pdf_path or not Path(pdf_path).exists() or not num_pages:
+            await callback.answer("Нет загруженного PDF.", show_alert=True)
+            user_modes[user_id] = "compress"
+            return
+
+        rotate_pages = state.get("rotate_pages")
+        if not rotate_pages:
+            # если по какой-то причине страниц нет — считаем, что все
+            rotate_pages = list(range(1, num_pages + 1))
+
+        try:
+            reader = PdfReader(str(pdf_path))
+        except Exception as e:
+            logger.error(f"Pages rotate open error: {e}")
+            await callback.message.answer("Не удалось открыть PDF.")
+            await callback.answer()
+            return
+
+        writer = PdfWriter()
+        rotate_set = set(rotate_pages)
+        for idx, page in enumerate(reader.pages, start=1):
+            if idx in rotate_set:
+                rotate_page_inplace(page, angle)
+            writer.add_page(page)
+
+        out_path = FILES_DIR / f"{Path(pdf_path).stem}_rotated.pdf"
+        try:
+            with open(out_path, "wb") as f:
+                writer.write(f)
+        except Exception as e:
+            logger.error(f"Pages rotate write error: {e}")
+            await callback.message.answer("Ошибка при сохранении PDF после поворота.")
+            await callback.answer()
+            return
+
+        await callback.message.answer_document(
+            types.FSInputFile(out_path),
+            caption=f"Готово: страницы повёрнуты на {angle}°."
+        )
+
+        # обновляем стейт, очищаем rotate_pages
+        state["pdf_path"] = out_path
+        state["pages"] = num_pages
+        state.pop("rotate_pages", None)
+        user_pages_state[user_id] = state
+        user_modes[user_id] = "pages_menu"
+
+        await callback.message.answer(
+            "Можно продолжить редактирование страниц.\n"
+            "Выбери действие:",
+            reply_markup=get_pages_menu_keyboard()
+        )
+        await callback.answer()
+
+    @dp.callback_query(F.data == "pages_back_to_menu")
+    async def pages_back_to_menu_callback(callback: types.CallbackQuery):
+        user_id = callback.from_user.id
+        state = user_pages_state.get(user_id) or {}
+        pdf_path = state.get("pdf_path")
+        num_pages = state.get("pages")
+
+        if not pdf_path or not Path(pdf_path).exists() or not num_pages:
+            user_modes[user_id] = "compress"
+            await callback.message.answer("Нет активного документа. Выбери режим и пришли PDF.")
+        else:
+            user_modes[user_id] = "pages_menu"
+            await callback.message.answer(
+                f"Редактор страниц PDF.\n"
+                f"Страниц в документе: {num_pages}\n\n"
+                "Выбери действие:",
+                reply_markup=get_pages_menu_keyboard()
+            )
+
+        await callback.answer()
 
     # ================================
     #   START BOT
