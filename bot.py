@@ -358,12 +358,12 @@ async def main():
                     KeyboardButton(text="📄 Документ/фото → PDF"),
                 ],
                 [
-                    KeyboardButton(text="🔍 OCR (PRO)"),
-                    KeyboardButton(text="📑 Searchable PDF (PRO)"),
+                    KeyboardButton(text="🔍 OCR"),
+                    KeyboardButton(text="📑 Searchable PDF"),
                 ],
                 [
-                    KeyboardButton(text="🧩 Редактор страниц (PRO)"),
-                    KeyboardButton(text="🛡 Водяной знак (PRO)"),
+                    KeyboardButton(text="🧩 Редактор страниц"),
+                    KeyboardButton(text="🛡 Водяной знак"),
                 ],
             ],
             resize_keyboard=True
@@ -388,18 +388,18 @@ async def main():
         logger.info(f"/start from {user_id} ({username}), tier={tier}")
         await message.answer(
             "👋 Привет! Я конвертирую и обрабатываю файлы в PDF.\n\n"
-            "Выбери режим на клавиатуре и пришли файл:\n"
+            "Выбери режим на клавиатуре и пришли файл:\n\n"
             "Основные инструменты:\n"
             "• 📉 Сжать PDF\n"
             "• 📎 Объединить PDF\n"
             "• ✂️ Разделить PDF\n"
             "• 📝 PDF → текст\n"
-            "• 📄 Документ/фото → PDF\n"
+            "• 📄 Документ/фото → PDF\n\n"
             "PRO-инструменты:\n"
-            "• 🔍 OCR (PRO)\n"
-            "• 📑 Searchable PDF (PRO)\n"
-            "• 🧩 Редактор страниц (PRO)\n"
-            "• 🛡 Водяной знак (PRO)\n\n"
+            "• 🔍 OCR\n"
+            "• 📑 Searchable PDF\n"
+            "• 🧩 Редактор страниц\n"
+            "• 🛡 Водяной знак\n\n"
             f"Текущий тариф: <b>{tier}</b>\n"
             f"Лимит: <b>{limit_mb}</b>\n\n"
             "Подключить PRO-версию: /pro",
