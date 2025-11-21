@@ -71,7 +71,7 @@ FILES_DIR.mkdir(exist_ok=True)
 # =========================
 #   USER STATES
 # =========================
-# mode: compress, pdf_text, doc_photo, merge, split, ocr, searchable_pdf, watermark_*
+# mode: compress, pdf_text, doc_photo, merge, split, ocr, searchable_pdf, watermark_*, pages
 user_modes: dict[int, str] = {}
 
 # list of files for merging
@@ -80,9 +80,12 @@ user_merge_files: dict[int, list[Path]] = {}
 # состояние для водяных знаков: user_id -> {"pdf_path": Path, "text": str, "pos": "11", "mosaic": bool}
 user_watermark_state: dict[int, dict] = {}
 
+# состояние для редактора страниц: user_id -> {"pdf_path": Path, "pages": int}
+user_pages_state: dict[int, dict] = {}
+
 
 # =========================
-#   WATERMARK HELPERS
+#   HELPERS
 # =========================
 def get_watermark_keyboard(pos: str | None = None, mosaic: bool = False) -> InlineKeyboardMarkup:
     """
@@ -186,6 +189,64 @@ def apply_watermark(pdf_in: Path, wm_text: str, pos: str, mosaic: bool) -> Path 
     return pdf_out
 
 
+def parse_page_range(range_str: str, max_pages: int) -> list[int]:
+    """
+    Парсер диапазонов вида '1-3,5,7-9' → [1,2,3,5,7,8,9]
+    Страницы считаются с 1. Всё, что выходит за пределы, отбрасывается.
+    """
+    pages: set[int] = set()
+    for part in range_str.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if "-" in part:
+            try:
+                start_s, end_s = part.split("-", 1)
+                start = int(start_s)
+                end = int(end_s)
+            except ValueError:
+                continue
+            if start > end:
+                start, end = end, start
+            for p in range(start, end + 1):
+                if 1 <= p <= max_pages:
+                    pages.add(p)
+        else:
+            try:
+                p = int(part)
+            except ValueError:
+                continue
+            if 1 <= p <= max_pages:
+                pages.add(p)
+    return sorted(pages)
+
+
+def rotate_page_inplace(page, angle: int):
+    """
+    Поворачивает страницу PyPDF2 на указанный угол (кратный 90).
+    Мутирует страницу.
+    """
+    angle = angle % 360
+    if angle == 0:
+        return
+    try:
+        # PyPDF2 >= 2.x
+        if angle == 90:
+            page.rotate_clockwise(90)
+        elif angle == 180:
+            page.rotate_clockwise(180)
+        elif angle == 270:
+            page.rotate_counter_clockwise(90)
+    except AttributeError:
+        # старые версии PyPDF2
+        if angle == 90:
+            page.rotateClockwise(90)
+        elif angle == 180:
+            page.rotateClockwise(180)
+        elif angle == 270:
+            page.rotateCounterClockwise(90)
+
+
 # =========================
 #   MAIN
 # =========================
@@ -239,6 +300,7 @@ async def main():
                     KeyboardButton(text="🔎 Searchable PDF (PRO)"),
                 ],
                 [
+                    KeyboardButton(text="🧩 Редактор страниц (PRO)"),
                     KeyboardButton(text="🛡 Водяной знак (PRO)"),
                 ],
             ],
@@ -256,6 +318,7 @@ async def main():
         user_modes[user_id] = "compress"
         user_merge_files[user_id] = []
         user_watermark_state[user_id] = {}
+        user_pages_state[user_id] = {}
 
         tier = "PRO" if is_pro(user_id) else "FREE"
         limit_mb = format_mb(get_user_limit(user_id))
@@ -271,6 +334,7 @@ async def main():
             "• 📄 Документ/фото → PDF\n"
             "• 🔍 OCR (PRO)\n"
             "• 🔎 Searchable PDF (PRO)\n"
+            "• 🧩 Редактор страниц (PRO)\n"
             "• 🛡 Водяной знак (PRO)\n\n"
             f"Текущий тариф: <b>{tier}</b>\n"
             f"Макс размер файла: <b>{limit_mb}</b>\n\n"
@@ -293,6 +357,7 @@ async def main():
                 "Доступные PRO-функции:\n"
                 "• OCR (сканы/фото → текст)\n"
                 "• Searchable PDF (скан → PDF с выделяемым текстом)\n"
+                "• Редактор страниц PDF (поворот/удаление/извлечение)\n"
                 "• Водяные знаки для PDF\n"
                 "• Файлы до 100 МБ",
                 parse_mode="HTML"
@@ -304,6 +369,7 @@ async def main():
                 "• Лимит до 100 МБ\n"
                 "• OCR (сканы и фото → текст)\n"
                 "• Searchable PDF (скан → PDF с выделяемым текстом)\n"
+                "• Редактор страниц PDF (поворот/удаление/извлечение)\n"
                 "• Водяные знаки для PDF\n"
                 "• Приоритет в очереди (планируется)\n\n"
                 "Чтобы подключить PRO — напишите владельцу бота.",
@@ -319,6 +385,7 @@ async def main():
         user_modes[user_id] = "compress"
         user_merge_files[user_id] = []
         user_watermark_state[user_id] = {}
+        user_pages_state[user_id] = {}
         await message.answer("Режим: сжатие PDF. Пришли PDF.", reply_markup=get_main_keyboard())
 
     @dp.message(F.text == "📝 PDF → текст")
@@ -327,6 +394,7 @@ async def main():
         user_modes[user_id] = "pdf_text"
         user_merge_files[user_id] = []
         user_watermark_state[user_id] = {}
+        user_pages_state[user_id] = {}
         await message.answer("Режим: PDF → текст. Пришли PDF.", reply_markup=get_main_keyboard())
 
     @dp.message(F.text == "📄 Документ/фото → PDF")
@@ -335,6 +403,7 @@ async def main():
         user_modes[user_id] = "doc_photo"
         user_merge_files[user_id] = []
         user_watermark_state[user_id] = {}
+        user_pages_state[user_id] = {}
         await message.answer(
             "Режим: DOC/IMG → PDF. Пришли документ или файл-изображение.",
             reply_markup=get_main_keyboard()
@@ -346,6 +415,7 @@ async def main():
         user_modes[user_id] = "merge"
         user_merge_files[user_id] = []
         user_watermark_state[user_id] = {}
+        user_pages_state[user_id] = {}
         await message.answer(
             "Режим: объединение.\n"
             "Пришли 2–10 PDF-файлов.\n"
@@ -359,6 +429,7 @@ async def main():
         user_modes[user_id] = "split"
         user_merge_files[user_id] = []
         user_watermark_state[user_id] = {}
+        user_pages_state[user_id] = {}
         await message.answer(
             "Режим: разделение PDF.\nПришли один PDF.",
             reply_markup=get_main_keyboard()
@@ -370,6 +441,7 @@ async def main():
         user_modes[user_id] = "ocr"
         user_merge_files[user_id] = []
         user_watermark_state[user_id] = {}
+        user_pages_state[user_id] = {}
         if not is_pro(user_id):
             await message.answer(
                 "Режим: 🔍 OCR (распознавание текста в сканах и фото).\n"
@@ -388,6 +460,7 @@ async def main():
         user_modes[user_id] = "searchable_pdf"
         user_merge_files[user_id] = []
         user_watermark_state[user_id] = {}
+        user_pages_state[user_id] = {}
         if not is_pro(user_id):
             await message.answer(
                 "Режим: 🔎 Searchable PDF.\n"
@@ -401,12 +474,42 @@ async def main():
                 "Пришли сканированный PDF. Я верну PDF, в котором текст можно выделять и искать."
             )
 
+    @dp.message(F.text == "🧩 Редактор страниц (PRO)")
+    async def mode_pages(message: types.Message):
+        user_id = message.from_user.id
+        user_modes[user_id] = "pages"
+        user_merge_files[user_id] = []
+        user_watermark_state[user_id] = {}
+        user_pages_state[user_id] = {}
+
+        if not is_pro(user_id):
+            await message.answer(
+                "Режим: 🧩 Редактор страниц PDF.\n"
+                "Доступно только для PRO-пользователей.\n\n"
+                "В этом режиме можно поворачивать, удалять и извлекать страницы без ограничений.\n"
+                "Подробнее: /pro"
+            )
+        else:
+            await message.answer(
+                "Режим: 🧩 Редактор страниц PDF.\n"
+                "1) Пришли PDF.\n"
+                "2) Потом отправь команду, например:\n"
+                "   • <code>rotate 90</code> — повернуть все страницы на 90° по часовой\n"
+                "   • <code>rotate -90 1-3,5</code> — повернуть страницы 1–3 и 5\n"
+                "   • <code>delete 2,4-6</code> — удалить страницы 2 и 4–6\n"
+                "   • <code>extract 3-10</code> — оставить только страницы 3–10\n\n"
+                "Команды можно отправлять несколько раз подряд — буду обновлять PDF.",
+                parse_mode="HTML",
+                reply_markup=get_main_keyboard()
+            )
+
     @dp.message(F.text == "🛡 Водяной знак (PRO)")
     async def mode_watermark(message: types.Message):
         user_id = message.from_user.id
         user_modes[user_id] = "watermark"
         user_merge_files[user_id] = []
         user_watermark_state[user_id] = {}
+        user_pages_state[user_id] = {}
 
         if not is_pro(user_id):
             await message.answer(
@@ -540,6 +643,39 @@ async def main():
                 caption="Готово: searchable PDF. Теперь текст можно выделять и искать."
             )
             logger.info(f"Searchable PDF done for user {user_id}")
+            return
+
+        # =============================
+        # PAGES MODE (rotate/delete/extract)
+        # =============================
+        if mode == "pages":
+            if not is_pro(user_id):
+                await message.answer("Операции со страницами доступны только для PRO-пользователей. См. /pro")
+                return
+
+            try:
+                reader = PdfReader(str(src_path))
+                num_pages = len(reader.pages)
+            except Exception as e:
+                logger.error(f"Pages mode open error: {e}")
+                await message.answer("Не удалось открыть PDF.")
+                return
+
+            user_pages_state[user_id] = {
+                "pdf_path": src_path,
+                "pages": num_pages,
+            }
+
+            await message.answer(
+                f"PDF получен. Страниц: {num_pages}.\n\n"
+                "Теперь отправь команду:\n"
+                "• <code>rotate 90</code> — повернуть все страницы на 90° по часовой\n"
+                "• <code>rotate -90 1-3,5</code> — повернуть указанные страницы\n"
+                "• <code>delete 2,4-6</code> — удалить страницы 2 и 4–6\n"
+                "• <code>extract 3-10</code> — оставить только страницы 3–10\n\n"
+                "После каждой операции я отправлю новый PDF и обновлю документ для дальнейших действий.",
+                parse_mode="HTML"
+            )
             return
 
         # =============================
@@ -756,13 +892,155 @@ async def main():
         return
 
     # ================================
-    #   TEXT COMMANDS (MERGE + WATERMARK)
+    #   TEXT COMMANDS (PAGES + MERGE + WATERMARK)
     # ================================
     @dp.message(F.text)
     async def handle_text(message: types.Message):
         user_id = message.from_user.id
         mode = user_modes.get(user_id, "compress")
         text_val = (message.text or "").strip().lower()
+
+        # ===== PAGES MODE: команды rotate/delete/extract =====
+        if mode == "pages":
+            state = user_pages_state.get(user_id) or {}
+            pdf_path = state.get("pdf_path")
+            num_pages = state.get("pages")
+
+            if not pdf_path or not Path(pdf_path).exists() or not num_pages:
+                await message.answer("Нет загруженного PDF. Сначала пришли файл в режиме 🧩 Редактор страниц (PRO).")
+                return
+
+            parts = (message.text or "").strip().split(maxsplit=2)
+            if not parts:
+                await message.answer("Команда пуста. Примеры: rotate 90, delete 2-5, extract 3-10")
+                return
+
+            cmd = parts[0].lower()
+            if cmd not in ("rotate", "delete", "extract"):
+                await message.answer(
+                    "Неизвестная команда.\n"
+                    "Используй: rotate, delete или extract.\n"
+                    "Примеры:\n"
+                    "• rotate 90\n"
+                    "• rotate -90 1-3,5\n"
+                    "• delete 2,4-6\n"
+                    "• extract 3-10"
+                )
+                return
+
+            try:
+                reader = PdfReader(str(pdf_path))
+            except Exception as e:
+                logger.error(f"Pages mode re-open error: {e}")
+                await message.answer("Не удалось открыть PDF.")
+                return
+
+            out_path: Path
+
+            if cmd == "rotate":
+                if len(parts) < 2:
+                    await message.answer("Нужно указать угол: rotate 90 или rotate -90 1-3,5")
+                    return
+
+                try:
+                    angle = int(parts[1])
+                except ValueError:
+                    await message.answer("Неверный угол. Пример: rotate 90 или rotate -90 1-3,5")
+                    return
+
+                if angle not in (-270, -180, -90, 90, 180, 270):
+                    await message.answer("Поддерживаются только углы кратные 90° (…,-180,-90,90,180,270).")
+                    return
+
+                if len(parts) == 3:
+                    pages = parse_page_range(parts[2], num_pages)
+                    if not pages:
+                        await message.answer("Не удалось распознать диапазон страниц.")
+                        return
+                    pages_set = set(pages)
+                else:
+                    pages_set = set(range(1, num_pages + 1))
+
+                writer = PdfWriter()
+                for idx, page in enumerate(reader.pages, start=1):
+                    if idx in pages_set:
+                        rotate_page_inplace(page, angle)
+                    writer.add_page(page)
+
+                out_path = FILES_DIR / f"{Path(pdf_path).stem}_rotated.pdf"
+                with open(out_path, "wb") as f:
+                    writer.write(f)
+
+                await message.answer_document(
+                    types.FSInputFile(out_path),
+                    caption=f"Готово: страницы повёрнуты. Всего страниц: {num_pages}."
+                )
+
+            elif cmd == "delete":
+                if len(parts) < 2:
+                    await message.answer("Нужно указать страницы: delete 2,4-6")
+                    return
+
+                pages = parse_page_range(parts[1], num_pages)
+                if not pages:
+                    await message.answer("Не удалось распознать страницы для удаления.")
+                    return
+                delete_set = set(pages)
+
+                writer = PdfWriter()
+                kept = 0
+                for idx, page in enumerate(reader.pages, start=1):
+                    if idx in delete_set:
+                        continue
+                    writer.add_page(page)
+                    kept += 1
+
+                if kept == 0:
+                    await message.answer("После удаления не осталось ни одной страницы. Операция отменена.")
+                    return
+
+                out_path = FILES_DIR / f"{Path(pdf_path).stem}_deleted.pdf"
+                with open(out_path, "wb") as f:
+                    writer.write(f)
+
+                await message.answer_document(
+                    types.FSInputFile(out_path),
+                    caption=f"Готово: удалены страницы {parts[1]}. Осталось страниц: {kept}."
+                )
+
+                num_pages = kept
+
+            elif cmd == "extract":
+                if len(parts) < 2:
+                    await message.answer("Нужно указать диапазон: extract 3-10")
+                    return
+
+                pages = parse_page_range(parts[1], num_pages)
+                if not pages:
+                    await message.answer("Не удалось распознать диапазон страниц.")
+                    return
+
+                writer = PdfWriter()
+                for p in pages:
+                    writer.add_page(reader.pages[p - 1])
+
+                safe_suffix = parts[1].replace(",", "_").replace("-", "_")
+                out_path = FILES_DIR / f"{Path(pdf_path).stem}_extract_{safe_suffix}.pdf"
+                with open(out_path, "wb") as f:
+                    writer.write(f)
+
+                await message.answer_document(
+                    types.FSInputFile(out_path),
+                    caption=f"Готово: извлечены страницы {parts[1]}."
+                )
+
+                num_pages = len(pages)
+
+            user_pages_state[user_id] = {
+                "pdf_path": out_path,
+                "pages": num_pages,
+            }
+            return
 
         # ===== ВОДЯНОЙ ЗНАК: шаг 2 — текст =====
         if mode == "watermark_wait_text":
@@ -781,7 +1059,6 @@ async def main():
                 return
 
             state["text"] = wm_text
-            # по умолчанию центр "11"
             state["pos"] = "11"
             state["mosaic"] = False
             user_watermark_state[user_id] = state
@@ -793,7 +1070,7 @@ async def main():
             )
             return
 
-        # ===== ВОДЯНОЙ ЗНАК: шаг 3 — выбор стиля уже идёт через inline-кнопки =====
+        # ===== ВОДЯНОЙ ЗНАК: напоминание =====
         if mode == "watermark_wait_style":
             await message.answer("Используй кнопки под прошлым сообщением для выбора позиции и Mosaic.")
             return
