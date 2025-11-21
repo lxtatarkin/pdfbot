@@ -4,12 +4,20 @@ from pathlib import Path
 import os
 import logging
 import zipfile
+from io import BytesIO
+
 import fitz  # PyMuPDF
 import pytesseract
+from PIL import Image
 
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import (
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+)
 from dotenv import load_dotenv
 from PyPDF2 import PdfReader, PdfMerger, PdfWriter
 
@@ -63,7 +71,7 @@ FILES_DIR.mkdir(exist_ok=True)
 # =========================
 #   USER STATES
 # =========================
-# mode: compress, pdf_text, doc_photo, merge, split, ocr, watermark_*
+# mode: compress, pdf_text, doc_photo, merge, split, ocr, searchable_pdf, watermark_*
 user_modes: dict[int, str] = {}
 
 # list of files for merging
@@ -111,7 +119,7 @@ def apply_watermark(pdf_in: Path, wm_text: str, pos: str, mosaic: bool) -> Path 
     """
     Нанесение водяного знака на PDF.
     pos — "rc" (r,c = 0..2) позиция в сетке 3×3, если mosaic = False.
-    Если mosaic = True — делаем простую "заплатку" текста по всей странице.
+    Если mosaic = True — делаем простую "мозаику" текста по всей странице.
     """
     pdf_out = FILES_DIR / f"{pdf_in.stem}_watermark.pdf"
 
@@ -154,7 +162,6 @@ def apply_watermark(pdf_in: Path, wm_text: str, pos: str, mosaic: bool) -> Path 
                 except Exception:
                     row, col = 1, 1  # по центру по умолчанию
 
-                # координаты центров ячеек 3×3
                 xs = [w * 0.17, w * 0.5, w * 0.83]
                 ys = [h * 0.2, h * 0.5, h * 0.8]
 
@@ -229,6 +236,9 @@ async def main():
                 ],
                 [
                     KeyboardButton(text="🔍 OCR (PRO)"),
+                    KeyboardButton(text="🔎 Searchable PDF (PRO)"),
+                ],
+                [
                     KeyboardButton(text="🛡 Водяной знак (PRO)"),
                 ],
             ],
@@ -260,6 +270,7 @@ async def main():
             "• 📝 PDF → текст\n"
             "• 📄 Документ/фото → PDF\n"
             "• 🔍 OCR (PRO)\n"
+            "• 🔎 Searchable PDF (PRO)\n"
             "• 🛡 Водяной знак (PRO)\n\n"
             f"Текущий тариф: <b>{tier}</b>\n"
             f"Макс размер файла: <b>{limit_mb}</b>\n\n"
@@ -281,6 +292,7 @@ async def main():
                 f"Текущий лимит: {format_mb(PRO_MAX_SIZE)}.\n\n"
                 "Доступные PRO-функции:\n"
                 "• OCR (сканы/фото → текст)\n"
+                "• Searchable PDF (скан → PDF с выделяемым текстом)\n"
                 "• Водяные знаки для PDF\n"
                 "• Файлы до 100 МБ",
                 parse_mode="HTML"
@@ -291,10 +303,9 @@ async def main():
                 "Что даёт сейчас:\n"
                 "• Лимит до 100 МБ\n"
                 "• OCR (сканы и фото → текст)\n"
+                "• Searchable PDF (скан → PDF с выделяемым текстом)\n"
                 "• Водяные знаки для PDF\n"
-                "• Приоритет в очереди\n\n"
-                "В будущем в PRO появятся:\n"
-                "• Расширенное редактирование PDF\n\n"
+                "• Приоритет в очереди (планируется)\n\n"
                 "Чтобы подключить PRO — напишите владельцу бота.",
                 parse_mode="HTML"
             )
@@ -369,6 +380,25 @@ async def main():
             await message.answer(
                 "Режим: 🔍 OCR.\n"
                 "Пришли PDF-скан или изображение (фото/картинка). Я верну TXT-файл с распознанным текстом."
+            )
+
+    @dp.message(F.text == "🔎 Searchable PDF (PRO)")
+    async def mode_searchable_pdf(message: types.Message):
+        user_id = message.from_user.id
+        user_modes[user_id] = "searchable_pdf"
+        user_merge_files[user_id] = []
+        user_watermark_state[user_id] = {}
+        if not is_pro(user_id):
+            await message.answer(
+                "Режим: 🔎 Searchable PDF.\n"
+                "Делаю из скана PDF с выделяемым текстом.\n"
+                "Функция доступна только для PRO-пользователей.\n\n"
+                "Подробнее: /pro"
+            )
+        else:
+            await message.answer(
+                "Режим: 🔎 Searchable PDF.\n"
+                "Пришли сканированный PDF. Я верну PDF, в котором текст можно выделять и искать."
             )
 
     @dp.message(F.text == "🛡 Водяной знак (PRO)")
@@ -457,6 +487,59 @@ async def main():
                 caption="Готово: OCR-текст из PDF."
             )
             logger.info(f"OCR PDF done for user {user_id}")
+            return
+
+        # =============================
+        # PRO: Searchable PDF
+        # =============================
+        if mode == "searchable_pdf":
+            if not is_pro(user_id):
+                await message.answer("Searchable PDF доступен только для PRO-пользователей. См. /pro")
+                return
+
+            await message.answer("Создаю searchable PDF (можно выделять текст)...")
+
+            try:
+                pdf_doc = fitz.open(str(src_path))
+            except Exception as e:
+                logger.error(f"Searchable PDF open error: {e}")
+                await message.answer("Не удалось открыть PDF.")
+                return
+
+            merger = PdfMerger()
+            try:
+                for page_index, page in enumerate(pdf_doc, start=1):
+                    pix = page.get_pixmap(dpi=300)
+                    img_bytes = pix.tobytes("png")
+                    img = Image.open(BytesIO(img_bytes))
+
+                    pdf_bytes = pytesseract.image_to_pdf_or_hocr(
+                        img,
+                        extension="pdf",
+                        lang="rus+eng"
+                    )
+
+                    merger.append(PdfReader(BytesIO(pdf_bytes)))
+
+                out_path = FILES_DIR / (Path(doc_msg.file_name).stem + "_searchable.pdf")
+                with open(out_path, "wb") as f:
+                    merger.write(f)
+                merger.close()
+                pdf_doc.close()
+            except Exception as e:
+                logger.error(f"Searchable PDF error: {e}")
+                await message.answer("Ошибка при создании searchable PDF.")
+                return
+
+            if not out_path.exists():
+                await message.answer("Не удалось создать searchable PDF.")
+                return
+
+            await message.answer_document(
+                types.FSInputFile(out_path),
+                caption="Готово: searchable PDF. Теперь текст можно выделять и искать."
+            )
+            logger.info(f"Searchable PDF done for user {user_id}")
             return
 
         # =============================
@@ -618,7 +701,6 @@ async def main():
 
         # IMAGE AS FILE
         if doc_msg.mime_type and doc_msg.mime_type.startswith("image/"):
-            from PIL import Image
             file = await bot.get_file(doc_msg.file_id)
             src_path = FILES_DIR / filename
             await bot.download_file(file.file_path, destination=src_path)
