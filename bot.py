@@ -231,27 +231,30 @@ def parse_page_range(range_str: str, max_pages: int) -> list[int]:
 def rotate_page_inplace(page, angle: int):
     """
     Поворачивает страницу PyPDF2 на указанный угол (кратный 90).
-    Мутирует страницу.
+    Работает и с PyPDF2 >= 3.0.0 (page.rotate), и со старыми версиями.
     """
     angle = angle % 360
     if angle == 0:
         return
+
+    # Новый API (PyPDF2 >= 3.0.0)
+    rotate_method = getattr(page, "rotate", None)
+    if callable(rotate_method):
+        # PyPDF2 3.x: angle может быть положительным или отрицательным, кратным 90
+        rotate_method(angle)
+        return
+
+    # Старый API (до 3.0.0)
     try:
-        # PyPDF2 >= 2.x
-        if angle == 90:
-            page.rotate_clockwise(90)
-        elif angle == 180:
-            page.rotate_clockwise(180)
-        elif angle == 270:
-            page.rotate_counter_clockwise(90)
-    except AttributeError:
-        # старые версии PyPDF2
         if angle == 90:
             page.rotateClockwise(90)
         elif angle == 180:
             page.rotateClockwise(180)
         elif angle == 270:
             page.rotateCounterClockwise(90)
+    except Exception as e:
+        # На всякий случай логируем, чтобы видеть, если что-то пойдёт не так
+        logger.error(f"Page rotate fallback error: {e}")
 
 
 def get_pages_menu_keyboard() -> InlineKeyboardMarkup:
