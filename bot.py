@@ -2,7 +2,8 @@ import asyncio
 import subprocess
 import zipfile
 from io import BytesIO
-
+import os
+from pathlib import Path
 import fitz  # PyMuPDF
 import pytesseract
 from PIL import Image
@@ -23,6 +24,7 @@ from settings import (
     format_mb,
     FILES_DIR,
     logger,
+    PRO_MAX_SIZE,
 )
 
 # =========================
@@ -455,7 +457,7 @@ async def main():
             reply_markup=get_main_keyboard()
         )
 
-    @dp.message(F.text == "🔍 OCR (PRO)")
+    @dp.message(F.text == "🔍 OCR")
     async def mode_ocr(message: types.Message):
         user_id = message.from_user.id
         user_modes[user_id] = "ocr"
@@ -474,7 +476,7 @@ async def main():
                 "Пришли PDF-скан или изображение (фото/картинка). Я верну TXT-файл с распознанным текстом."
             )
 
-    @dp.message(F.text == "🔎 Searchable PDF (PRO)")
+    @dp.message(F.text == "🔎 Searchable PDF")
     async def mode_searchable_pdf(message: types.Message):
         user_id = message.from_user.id
         user_modes[user_id] = "searchable_pdf"
@@ -494,7 +496,7 @@ async def main():
                 "Пришли сканированный PDF. Я верну PDF, в котором текст можно выделять и искать."
             )
 
-    @dp.message(F.text == "🧩 Редактор страниц (PRO)")
+    @dp.message(F.text == "🧩 Редактор страниц")
     async def mode_pages(message: types.Message):
         user_id = message.from_user.id
         user_merge_files[user_id] = []
@@ -517,7 +519,7 @@ async def main():
                 reply_markup=get_main_keyboard()
             )
 
-    @dp.message(F.text == "🛡 Водяной знак (PRO)")
+    @dp.message(F.text == "🛡 Водяной знак")
     async def mode_watermark(message: types.Message):
         user_id = message.from_user.id
         user_modes[user_id] = "watermark"
