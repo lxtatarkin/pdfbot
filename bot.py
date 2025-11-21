@@ -9,7 +9,7 @@ import pytesseract
 
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from dotenv import load_dotenv
 from PyPDF2 import PdfReader, PdfMerger, PdfWriter
 
@@ -69,8 +69,114 @@ user_modes: dict[int, str] = {}
 # list of files for merging
 user_merge_files: dict[int, list[Path]] = {}
 
-# состояние для водяных знаков: user_id -> {"pdf_path": Path, "text": str}
+# состояние для водяных знаков: user_id -> {"pdf_path": Path, "text": str, "pos": "11", "mosaic": bool}
 user_watermark_state: dict[int, dict] = {}
+
+
+# =========================
+#   WATERMARK HELPERS
+# =========================
+def get_watermark_keyboard(pos: str | None = None, mosaic: bool = False) -> InlineKeyboardMarkup:
+    """
+    Инлайн-клавиатура 3×3 для выбора позиции + чекбокс Mosaic + кнопка OK.
+    pos — строка вида "rc" (row, col), где r,c в [0..2].
+    """
+    grid: list[list[InlineKeyboardButton]] = []
+
+    for r in range(3):
+        row: list[InlineKeyboardButton] = []
+        for c in range(3):
+            code = f"{r}{c}"
+            text = "●" if pos == code else " "
+            row.append(
+                InlineKeyboardButton(
+                    text=text,
+                    callback_data=f"wm_pos:{code}"
+                )
+            )
+        grid.append(row)
+
+    mosaic_text = "✅ Mosaic" if mosaic else "Mosaic"
+    grid.append([
+        InlineKeyboardButton(text=mosaic_text, callback_data="wm_toggle_mosaic")
+    ])
+    grid.append([
+        InlineKeyboardButton(text="OK", callback_data="wm_apply")
+    ])
+
+    return InlineKeyboardMarkup(inline_keyboard=grid)
+
+
+def apply_watermark(pdf_in: Path, wm_text: str, pos: str, mosaic: bool) -> Path | None:
+    """
+    Нанесение водяного знака на PDF.
+    pos — "rc" (r,c = 0..2) позиция в сетке 3×3, если mosaic = False.
+    Если mosaic = True — делаем простую "заплатку" текста по всей странице.
+    """
+    pdf_out = FILES_DIR / f"{pdf_in.stem}_watermark.pdf"
+
+    try:
+        doc = fitz.open(str(pdf_in))
+    except Exception as e:
+        logger.error(f"Watermark open error: {e}")
+        return None
+
+    try:
+        for page in doc:
+            rect = page.rect
+            w, h = rect.width, rect.height
+
+            fontsize = max(w, h) / 25
+            color = (0.7, 0.7, 0.7)
+
+            if mosaic:
+                # простая "мозаика": сетка 4×4 по всей странице
+                rows = 4
+                cols = 4
+                step_x = w / cols
+                step_y = h / rows
+                for i in range(rows):
+                    for j in range(cols):
+                        x = (j + 0.5) * step_x
+                        y = (i + 0.5) * step_y
+                        point = fitz.Point(x, y)
+                        page.insert_text(
+                            point,
+                            wm_text,
+                            fontsize=fontsize * 0.7,
+                            color=color,
+                        )
+            else:
+                # одиночный watermark по сетке 3×3
+                try:
+                    row = int(pos[0])
+                    col = int(pos[1])
+                except Exception:
+                    row, col = 1, 1  # по центру по умолчанию
+
+                # координаты центров ячеек 3×3
+                xs = [w * 0.17, w * 0.5, w * 0.83]
+                ys = [h * 0.2, h * 0.5, h * 0.8]
+
+                x = xs[min(max(col, 0), 2)]
+                y = ys[min(max(row, 0), 2)]
+
+                point = fitz.Point(x, y)
+
+                page.insert_text(
+                    point,
+                    wm_text,
+                    fontsize=fontsize,
+                    color=color,
+                )
+
+        doc.save(str(pdf_out))
+        doc.close()
+    except Exception as e:
+        logger.error(f"Watermark apply error: {e}")
+        return None
+
+    return pdf_out
 
 
 # =========================
@@ -280,10 +386,10 @@ async def main():
             )
         else:
             await message.answer(
-                "Режим: 🛡 водяной знак.\n"
+                "Режим: 🛡 Водяной знак.\n"
                 "1) Пришли PDF-файл.\n"
                 "2) Потом введи текст водяного знака.\n"
-                "3) Выбери стиль (диагональ, центр, низ страницы)."
+                "3) Выбери позицию на сетке и при желании включи Mosaic."
             )
 
     # ================================
@@ -293,14 +399,14 @@ async def main():
     async def handle_pdf(message: types.Message):
         user_id = message.from_user.id
         mode = user_modes.get(user_id, "compress")
-        doc = message.document
+        doc_msg = message.document
 
         # size check
-        if not await check_size_or_reject(message, doc.file_size):
+        if not await check_size_or_reject(message, doc_msg.file_size):
             return
 
-        file = await bot.get_file(doc.file_id)
-        src_path = FILES_DIR / doc.file_name
+        file = await bot.get_file(doc_msg.file_id)
+        src_path = FILES_DIR / doc_msg.file_name
         await bot.download_file(file.file_path, destination=src_path)
 
         # =============================
@@ -323,19 +429,16 @@ async def main():
             all_text_parts: list[str] = []
 
             try:
-                from PIL import Image
                 for page_index, page in enumerate(pdf_doc, start=1):
                     pix = page.get_pixmap(dpi=300)
                     img_path = FILES_DIR / f"ocr_{user_id}_{page_index}.png"
                     pix.save(img_path)
 
-                    img = Image.open(img_path)
                     text_page = pytesseract.image_to_string(
-                        img,
+                        str(img_path),
                         lang="rus+eng"
                     )
                     all_text_parts.append(text_page)
-                pdf_doc.close()
             except Exception as e:
                 logger.error(f"OCR processing error: {e}")
                 await message.answer("Ошибка при распознавании текста.")
@@ -346,7 +449,7 @@ async def main():
                 await message.answer("Не удалось распознать текст (возможно очень плохое качество скана).")
                 return
 
-            txt_path = FILES_DIR / (Path(doc.file_name).stem + "_ocr.txt")
+            txt_path = FILES_DIR / (Path(doc_msg.file_name).stem + "_ocr.txt")
             txt_path.write_text(full_text, encoding="utf-8")
 
             await message.answer_document(
@@ -370,7 +473,7 @@ async def main():
             await message.answer(
                 "PDF получил.\n"
                 "Теперь отправь текст водяного знака.\n"
-                "Например: CONFIDENTIAL, DRAFT, КОПИЯ.\n"
+                "Например: CONFIDENTIAL, DRAFT, КОПИЯ."
             )
             return
 
@@ -411,7 +514,7 @@ async def main():
                 await message.answer("Текста не найдено (возможно скан).")
                 return
 
-            txt_path = FILES_DIR / (Path(doc.file_name).stem + ".txt")
+            txt_path = FILES_DIR / (Path(doc_msg.file_name).stem + ".txt")
             txt_path.write_text(text_full, encoding="utf-8")
 
             await message.answer_document(types.FSInputFile(txt_path), caption="Готово.")
@@ -434,7 +537,7 @@ async def main():
                 await message.answer("Там всего 1 страница.")
                 return
 
-            base = Path(doc.file_name).stem
+            base = Path(doc_msg.file_name).stem
             pages = []
 
             try:
@@ -472,7 +575,7 @@ async def main():
         # COMPRESS PDF (DEFAULT)
         # =============================
         await message.answer("Сжимаю PDF...")
-        compressed_path = FILES_DIR / f"compressed_{doc.file_name}"
+        compressed_path = FILES_DIR / f"compressed_{doc_msg.file_name}"
 
         gs_cmd = [
             "gs",
@@ -505,55 +608,21 @@ async def main():
     # ================================
     @dp.message(F.document & (F.document.mime_type != "application/pdf"))
     async def handle_doc(message: types.Message):
-        doc = message.document
-        filename = doc.file_name or "file"
+        doc_msg = message.document
+        filename = doc_msg.file_name or "file"
         ext = filename.split(".")[-1].lower()
 
         # size check
-        if not await check_size_or_reject(message, doc.file_size):
+        if not await check_size_or_reject(message, doc_msg.file_size):
             return
 
         # IMAGE AS FILE
-        if doc.mime_type and doc.mime_type.startswith("image/"):
+        if doc_msg.mime_type and doc_msg.mime_type.startswith("image/"):
             from PIL import Image
-            file = await bot.get_file(doc.file_id)
+            file = await bot.get_file(doc_msg.file_id)
             src_path = FILES_DIR / filename
             await bot.download_file(file.file_path, destination=src_path)
 
-            # если режим OCR и PRO — делаем OCR по изображению
-            user_id = message.from_user.id
-            mode = user_modes.get(user_id, "compress")
-
-            if mode == "ocr":
-                if not is_pro(user_id):
-                    await message.answer("OCR доступен только для PRO-пользователей. См. /pro")
-                    return
-
-                await message.answer("Распознаю текст на изображении (OCR)...")
-                try:
-                    img = Image.open(src_path)
-                    text_page = pytesseract.image_to_string(img, lang="rus+eng")
-                except Exception as e:
-                    logger.error(f"OCR image-doc error: {e}")
-                    await message.answer("Ошибка при распознавании текста.")
-                    return
-
-                full_text = (text_page or "").strip()
-                if not full_text:
-                    await message.answer("Не удалось распознать текст на изображении.")
-                    return
-
-                txt_path = FILES_DIR / (Path(filename).stem + "_ocr.txt")
-                txt_path.write_text(full_text, encoding="utf-8")
-
-                await message.answer_document(
-                    types.FSInputFile(txt_path),
-                    caption="Готово: OCR-текст из изображения."
-                )
-                logger.info(f"OCR IMAGE-DOC done for user {user_id}")
-                return
-
-            # иначе — конвертация в PDF
             pdf_path = FILES_DIR / (Path(filename).stem + ".pdf")
             try:
                 img = Image.open(src_path).convert("RGB")
@@ -577,7 +646,7 @@ async def main():
 
         await message.answer("Конвертирую документ...")
 
-        file = await bot.get_file(doc.file_id)
+        file = await bot.get_file(doc_msg.file_id)
         src_path = FILES_DIR / filename
         await bot.download_file(file.file_path, destination=src_path)
 
@@ -605,80 +674,13 @@ async def main():
         return
 
     # ================================
-    #   PHOTO (telegram photo) → OCR / PDF
-    # ================================
-    @dp.message(F.photo)
-    async def handle_photo(message: types.Message):
-        user_id = message.from_user.id
-        mode = user_modes.get(user_id, "compress")
-
-        photo = message.photo[-1]  # самое большое
-        # size check
-        if not await check_size_or_reject(message, photo.file_size):
-            return
-
-        file = await bot.get_file(photo.file_id)
-        jpg_name = f"{photo.file_id}.jpg"
-        src_path = FILES_DIR / jpg_name
-        await bot.download_file(file.file_path, destination=src_path)
-
-        from PIL import Image
-
-        # OCR режим
-        if mode == "ocr":
-            if not is_pro(user_id):
-                await message.answer("OCR доступен только для PRO-пользователей. См. /pro")
-                return
-
-            await message.answer("Распознаю текст на фото (OCR)...")
-            try:
-                img = Image.open(src_path)
-                text_page = pytesseract.image_to_string(img, lang="rus+eng")
-            except Exception as e:
-                logger.error(f"OCR photo error: {e}")
-                await message.answer("Ошибка при распознавании текста.")
-                return
-
-            full_text = (text_page or "").strip()
-            if not full_text:
-                await message.answer("Не удалось распознать текст на фото.")
-                return
-
-            txt_path = FILES_DIR / f"{photo.file_id}_ocr.txt"
-            txt_path.write_text(full_text, encoding="utf-8")
-
-            await message.answer_document(
-                types.FSInputFile(txt_path),
-                caption="Готово: OCR-текст с фото."
-            )
-            logger.info(f"OCR PHOTO done for user {user_id}")
-            return
-
-        # Остальные режимы: просто фото → PDF
-        pdf_path = FILES_DIR / (Path(jpg_name).stem + ".pdf")
-        try:
-            img = Image.open(src_path).convert("RGB")
-            img.save(pdf_path, "PDF")
-        except Exception as e:
-            logger.error(f"PHOTO->PDF error: {e}")
-            await message.answer("Не удалось конвертировать фото в PDF.")
-            return
-
-        await message.answer_document(
-            types.FSInputFile(pdf_path),
-            caption="Фото сконвертировано в PDF."
-        )
-        logger.info(f"PHOTO converted to PDF for user {user_id}")
-        return
-
-    # ================================
     #   TEXT COMMANDS (MERGE + WATERMARK)
     # ================================
     @dp.message(F.text)
     async def handle_text(message: types.Message):
         user_id = message.from_user.id
         mode = user_modes.get(user_id, "compress")
-        text = (message.text or "").strip().lower()
+        text_val = (message.text or "").strip().lower()
 
         # ===== ВОДЯНОЙ ЗНАК: шаг 2 — текст =====
         if mode == "watermark_wait_text":
@@ -697,112 +699,25 @@ async def main():
                 return
 
             state["text"] = wm_text
+            # по умолчанию центр "11"
+            state["pos"] = "11"
+            state["mosaic"] = False
             user_watermark_state[user_id] = state
             user_modes[user_id] = "watermark_wait_style"
 
             await message.answer(
-                "Теперь выбери стиль водяного знака:\n"
-                "1 — Диагональ по центру (крупный серый текст)\n"
-                "2 — По центру страницы\n"
-                "3 — Внизу страницы\n\n"
-                "Отправь цифру: 1, 2 или 3."
+                "Выбери позицию водяного знака (сетку 3×3) и при необходимости включи Mosaic.",
+                reply_markup=get_watermark_keyboard(pos="11", mosaic=False)
             )
             return
 
-        # ===== ВОДЯНОЙ ЗНАК: шаг 3 — стиль и генерация =====
+        # ===== ВОДЯНОЙ ЗНАК: шаг 3 — выбор стиля уже идёт через inline-кнопки =====
         if mode == "watermark_wait_style":
-            state = user_watermark_state.get(user_id) or {}
-            pdf_path = state.get("pdf_path")
-            wm_text = state.get("text")
-
-            if not pdf_path or not Path(pdf_path).exists() or not wm_text:
-                await message.answer("Что-то пошло не так. Начни добавление водяного знака заново.")
-                user_modes[user_id] = "watermark"
-                user_watermark_state[user_id] = {}
-                return
-
-            choice = (message.text or "").strip()
-            if choice not in ("1", "2", "3"):
-                await message.answer("Нужно отправить цифру: 1, 2 или 3.")
-                return
-
-            style = int(choice)
-
-            await message.answer("Добавляю водяной знак в PDF...")
-
-            pdf_in = Path(pdf_path)
-            pdf_out = FILES_DIR / f"{pdf_in.stem}_watermark.pdf"
-
-            try:
-                doc = fitz.open(str(pdf_in))
-            except Exception as e:
-                logger.error(f"Watermark open error: {e}")
-                await message.answer("Не удалось открыть PDF для водяного знака.")
-                return
-
-            try:
-                for page in doc:
-                    rect = page.rect
-                    w = rect.width
-                    h = rect.height
-
-                    fontsize = max(w, h) / 20
-                    color = (0.7, 0.7, 0.7)
-
-                    if style == 1:
-                        # диагональ по центру
-                        point = fitz.Point(w / 2, h / 2)
-                        page.insert_text(
-                            point,
-                            wm_text,
-                            fontsize=fontsize,
-                            color=color,
-                            rotate=45,
-                        )
-
-                    elif style == 2:
-                        # по центру
-                        point = fitz.Point(w / 2, h / 2)
-                        page.insert_text(
-                            point,
-                            wm_text,
-                            fontsize=fontsize * 0.7,
-                            color=color,
-                        )
-
-                    elif style == 3:
-                        # внизу страницы
-                        point = fitz.Point(w / 2, h - 40)
-                        page.insert_text(
-                            point,
-                            wm_text,
-                            fontsize=fontsize * 0.6,
-                            color=color,
-                        )
-
-                doc.save(str(pdf_out))
-                doc.close()
-
-            except Exception as e:
-                logger.error(f"Watermark apply error: {e}")
-                await message.answer("Ошибка при добавлении водяного знака.")
-                return
-
-            if not pdf_out.exists():
-                await message.answer("Не получилось сохранить PDF с водяным знаком.")
-                return
-
-            await message.answer_document(
-                types.FSInputFile(pdf_out),
-                caption="Готово: PDF с водяным знаком."
-            )
-
-            user_watermark_state[user_id] = {}
-            user_modes[user_id] = "compress"
+            await message.answer("Используй кнопки под прошлым сообщением для выбора позиции и Mosaic.")
             return
 
         # ===== MERGE: "Готово" =====
-        if mode == "merge" and text in ("готово", "/done", "/merge"):
+        if mode == "merge" and text_val in ("готово", "/done", "/merge"):
             files_list = user_merge_files.get(user_id, [])
 
             if len(files_list) < 2:
@@ -832,9 +747,86 @@ async def main():
         return
 
     # ================================
+    #   CALLBACKS: WATERMARK UI
+    # ================================
+    @dp.callback_query(F.data.startswith("wm_pos:"))
+    async def wm_pos_callback(callback: types.CallbackQuery):
+        user_id = callback.from_user.id
+        state = user_watermark_state.setdefault(user_id, {})
+        pos_code = callback.data.split(":", 1)[1]
+        state["pos"] = pos_code
+        user_watermark_state[user_id] = state
+
+        try:
+            await callback.message.edit_reply_markup(
+                reply_markup=get_watermark_keyboard(
+                    pos=pos_code,
+                    mosaic=state.get("mosaic", False)
+                )
+            )
+        except Exception as e:
+            logger.error(f"wm_pos edit_reply_markup error: {e}")
+
+        await callback.answer()
+
+    @dp.callback_query(F.data == "wm_toggle_mosaic")
+    async def wm_mosaic_callback(callback: types.CallbackQuery):
+        user_id = callback.from_user.id
+        state = user_watermark_state.setdefault(user_id, {})
+        state["mosaic"] = not state.get("mosaic", False)
+
+        try:
+            await callback.message.edit_reply_markup(
+                reply_markup=get_watermark_keyboard(
+                    pos=state.get("pos", "11"),
+                    mosaic=state["mosaic"]
+                )
+            )
+        except Exception as e:
+            logger.error(f"wm_toggle_mosaic edit_reply_markup error: {e}")
+
+        await callback.answer()
+
+    @dp.callback_query(F.data == "wm_apply")
+    async def wm_apply_callback(callback: types.CallbackQuery):
+        user_id = callback.from_user.id
+        state = user_watermark_state.get(user_id) or {}
+        pdf_path = state.get("pdf_path")
+        wm_text = state.get("text")
+        pos = state.get("pos", "11")
+        mosaic = state.get("mosaic", False)
+
+        if not pdf_path or not Path(pdf_path).exists() or not wm_text:
+            await callback.answer("Нет данных для водяного знака, начните заново.", show_alert=True)
+            user_modes[user_id] = "watermark"
+            user_watermark_state[user_id] = {}
+            return
+
+        await callback.answer()
+        try:
+            await callback.message.edit_text("Добавляю водяной знак в PDF...")
+        except Exception:
+            pass
+
+        out_path = apply_watermark(Path(pdf_path), wm_text, pos, mosaic)
+
+        if not out_path or not out_path.exists():
+            await callback.message.answer("Не получилось сохранить PDF с водяным знаком.")
+            return
+
+        await callback.message.answer_document(
+            types.FSInputFile(out_path),
+            caption="Готово: PDF с водяным знаком."
+        )
+
+        user_watermark_state[user_id] = {}
+        user_modes[user_id] = "compress"
+
+    # ================================
     #   START BOT
     # ================================
     await dp.start_polling(bot)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
