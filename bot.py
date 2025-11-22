@@ -316,7 +316,7 @@ async def main():
     #   HANDLE PDF
     # ================================
     @router.message(F.document & (F.document.mime_type == "application/pdf"))
-    async def handle_pdf(message: types.Message):
+    async def handle_pdf(message: types.Message, bot: Bot):
         user_id = message.from_user.id
         mode = user_modes.get(user_id, "compress")
         doc_msg = message.document
@@ -523,7 +523,7 @@ async def main():
     #   DOC / IMAGE → PDF
     # ================================
     @router.message(F.document & (F.document.mime_type != "application/pdf"))
-    async def handle_doc(message: types.Message):
+    async def handle_doc(message: types.Message, bot: Bot):
         doc_msg = message.document
         filename = doc_msg.file_name or "file"
         ext = filename.split(".")[-1].lower()
@@ -813,23 +813,20 @@ async def main():
         return
 
     @router.message(F.photo)
-    async def handle_photo(message: types.Message):
+    async def handle_photo(message: types.Message, bot: Bot):
         user_id = message.from_user.id
         mode = user_modes.get(user_id, "doc_photo")
 
-        # берём самое большое по размеру фото (последний элемент)
         photo = message.photo[-1]
 
         # проверка лимита по размеру
         if not await check_size_or_reject(message, photo.file_size):
             return
 
-        # статус
         await message.answer("Конвертирую фото в PDF...")
 
         file = await bot.get_file(photo.file_id)
 
-        # делаем имя файла, чтобы сохранить на диск
         filename = f"photo_{user_id}_{photo.file_id}.jpg"
         src_path = FILES_DIR / filename
         await bot.download_file(file.file_path, destination=src_path)
@@ -843,7 +840,7 @@ async def main():
             types.FSInputFile(pdf_path),
             caption="Готово."
         )
-
+        
     # ================================
     #   CALLBACKS: WATERMARK UI
     # ================================
