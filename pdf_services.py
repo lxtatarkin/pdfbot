@@ -10,6 +10,7 @@ from typing import Sequence
 import pytesseract
 from PIL import Image
 from PyPDF2 import PdfMerger
+import subprocess
 
 
 def apply_watermark(pdf_in: Path, wm_text: str, pos: str, mosaic: bool) -> Path | None:
@@ -274,3 +275,62 @@ def merge_pdfs(pdf_paths: Sequence[Path], out_path: Path) -> Path | None:
         return None
 
     return out_path if out_path.exists() else None
+
+
+def extract_text_from_pdf(pdf_path: Path) -> str | None:
+    """
+    Извлекает текст из обычного PDF (не скана).
+    Возвращает строку или None при ошибке/отсутствии текста.
+    """
+    try:
+        reader = PdfReader(str(pdf_path))
+    except Exception as e:
+        logger.error(f"PDF text open error: {e}")
+        return None
+
+    text_chunks: list[str] = []
+    try:
+        for page in reader.pages:
+            txt = page.extract_text() or ""
+            text_chunks.append(txt)
+    except Exception as e:
+        logger.error(f"PDF text extract error: {e}")
+        return None
+
+    text_full = "\n\n".join(text_chunks).strip()
+    return text_full or None
+
+
+def compress_pdf(input_path: Path, output_path: Path) -> bool:
+    """
+    Сжимает PDF через Ghostscript.
+    Возвращает True при успехе, False при ошибке.
+    """
+    gs_cmd = [
+        "gs",
+        "-sDEVICE=pdfwrite",
+        "-dCompatibilityLevel=1.4",
+        "-dPDFSETTINGS=/ebook",
+        "-dNOPAUSE",
+        "-dQUIET",
+        "-dBATCH",
+        f"-sOutputFile={output_path}",
+        str(input_path),
+    ]
+
+    try:
+        result = subprocess.run(
+            gs_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except Exception as e:
+        logger.error(f"Ghostscript run error: {e}")
+        return False
+
+    if result.returncode != 0:
+        logger.error(f"Ghostscript exit code {result.returncode}: {result.stderr}")
+        return False
+
+    return output_path.exists() 
