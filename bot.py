@@ -4,9 +4,6 @@ import subprocess
 from io import BytesIO
 import os
 from pathlib import Path
-import fitz  # PyMuPDF
-import pytesseract
-from PIL import Image
 
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
@@ -42,6 +39,8 @@ from pdf_services import (
     merge_pdfs,
     extract_text_from_pdf,
     compress_pdf,
+    image_file_to_pdf,
+    office_doc_to_pdf,
 )
 
 # =========================
@@ -538,12 +537,8 @@ async def main():
             src_path = FILES_DIR / filename
             await bot.download_file(file.file_path, destination=src_path)
 
-            pdf_path = FILES_DIR / (Path(filename).stem + ".pdf")
-            try:
-                img = Image.open(src_path).convert("RGB")
-                img.save(pdf_path, "PDF")
-            except Exception as e:
-                logger.error(e)
+            pdf_path = image_file_to_pdf(src_path)
+            if not pdf_path:
                 await message.answer("Не удалось конвертировать изображение.")
                 return
 
@@ -565,24 +560,9 @@ async def main():
         src_path = FILES_DIR / filename
         await bot.download_file(file.file_path, destination=src_path)
 
-        lo_path = "soffice" if os.name != "nt" else r"C:\Program Files\LibreOffice\program\soffice.exe"
-        logger.info(f"LibreOffice binary: {lo_path}")
-
-        try:
-            subprocess.run(
-                [lo_path, "--headless", "--convert-to", "pdf", "--outdir", str(FILES_DIR), str(src_path)],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True
-            )
-        except Exception as e:
-            logger.error(e)
-            await message.answer("Ошибка LibreOffice.")
-            return
-
-        pdf_path = FILES_DIR / (Path(filename).stem + ".pdf")
-        if not pdf_path.exists():
-            await message.answer("PDF не найден после конвертации.")
+        pdf_path = office_doc_to_pdf(src_path)
+        if not pdf_path:
+            await message.answer("Ошибка при конвертации документа в PDF.")
             return
 
         await message.answer_document(types.FSInputFile(pdf_path), caption="Готово.")

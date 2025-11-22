@@ -2,14 +2,13 @@
 from pathlib import Path
 
 import fitz  # PyMuPDF
-from PyPDF2 import PdfReader, PdfWriter
+from PyPDF2 import PdfReader, PdfWriter, PdfMerger
 from settings import FILES_DIR, logger
 from io import BytesIO
 from typing import Sequence
 
 import pytesseract
 from PIL import Image
-from PyPDF2 import PdfMerger
 import subprocess
 
 
@@ -333,4 +332,50 @@ def compress_pdf(input_path: Path, output_path: Path) -> bool:
         logger.error(f"Ghostscript exit code {result.returncode}: {result.stderr}")
         return False
 
-    return output_path.exists() 
+    return output_path.exists()
+
+def image_file_to_pdf(src_path: Path) -> Path | None:
+    """
+    Конвертирует файл-изображение в PDF.
+    Возвращает путь к PDF или None при ошибке.
+    """
+    pdf_path = FILES_DIR / (src_path.stem + ".pdf")
+    try:
+        img = Image.open(src_path).convert("RGB")
+        img.save(pdf_path, "PDF")
+    except Exception as e:
+        logger.error(f"Image to PDF error: {e}")
+        return None
+
+    return pdf_path if pdf_path.exists() else None
+
+
+def office_doc_to_pdf(src_path: Path) -> Path | None:
+    """
+    Конвертирует офисный документ (DOC/DOCX/XLSX/PPTX...) в PDF через LibreOffice.
+    Возвращает путь к PDF или None при ошибке.
+    """
+    lo_path = "soffice" if os.name != "nt" else r"C:\Program Files\LibreOffice\program\soffice.exe"
+    logger.info(f"LibreOffice binary: {lo_path}")
+
+    try:
+        result = subprocess.run(
+            [lo_path, "--headless", "--convert-to", "pdf", "--outdir", str(FILES_DIR), str(src_path)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except Exception as e:
+        logger.error(f"LibreOffice run error: {e}")
+        return None
+
+    if result.returncode != 0:
+        logger.error(f"LibreOffice exit code {result.returncode}: {result.stderr}")
+        return None
+
+    pdf_path = FILES_DIR / (src_path.stem + ".pdf")
+    if not pdf_path.exists():
+        logger.error("PDF not found after LibreOffice conversion.")
+        return None
+
+    return pdf_path
