@@ -1,15 +1,16 @@
 # pdf_services.py
+import os
+import subprocess
+from io import BytesIO
+from typing import Sequence
 from pathlib import Path
 
 import fitz  # PyMuPDF
-from PyPDF2 import PdfReader, PdfWriter, PdfMerger
-from settings import FILES_DIR, logger
-from io import BytesIO
-from typing import Sequence
-
 import pytesseract
 from PIL import Image
-import subprocess
+from PyPDF2 import PdfReader, PdfWriter, PdfMerger
+
+from settings import FILES_DIR, logger
 
 
 def apply_watermark(pdf_in: Path, wm_text: str, pos: str, mosaic: bool) -> Path | None:
