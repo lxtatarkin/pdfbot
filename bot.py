@@ -533,6 +533,8 @@ async def main():
 
         # IMAGE AS FILE
         if doc_msg.mime_type and doc_msg.mime_type.startswith("image/"):
+            await message.answer("Конвертирую изображение в PDF...")
+
             file = await bot.get_file(doc_msg.file_id)
             src_path = FILES_DIR / filename
             await bot.download_file(file.file_path, destination=src_path)
