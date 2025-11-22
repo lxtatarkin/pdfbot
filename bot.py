@@ -1,5 +1,4 @@
 import asyncio
-import subprocess
 import zipfile
 from io import BytesIO
 import os
@@ -40,6 +39,8 @@ from pdf_services import (
     create_searchable_pdf,
     split_pdf_to_pages,
     merge_pdfs,
+    extract_text_from_pdf,
+    compress_pdf,
 )
 
 # =========================
@@ -455,20 +456,10 @@ async def main():
         # =============================
         if mode == "pdf_text":
             await message.answer("Извлекаю текст...")
-            text_chunks = []
-            try:
-                reader = PdfReader(str(src_path))
-                for page in reader.pages:
-                    txt = page.extract_text() or ""
-                    text_chunks.append(txt)
-            except Exception as e:
-                logger.error(e)
-                await message.answer("Не удалось извлечь текст.")
-                return
 
-            text_full = "\n\n".join(text_chunks).strip()
+            text_full = extract_text_from_pdf(src_path)
             if not text_full:
-                await message.answer("Текста не найдено (возможно скан).")
+                await message.answer("Текста не найдено (возможно скан или ошибка чтения).")
                 return
 
             txt_path = FILES_DIR / (Path(doc_msg.file_name).stem + ".txt")
@@ -519,27 +510,9 @@ async def main():
         await message.answer("Сжимаю PDF...")
         compressed_path = FILES_DIR / f"compressed_{doc_msg.file_name}"
 
-        gs_cmd = [
-            "gs",
-            "-sDEVICE=pdfwrite",
-            "-dCompatibilityLevel=1.4",
-            "-dPDFSETTINGS=/ebook",
-            "-dNOPAUSE",
-            "-dQUIET",
-            "-dBATCH",
-            f"-sOutputFile={compressed_path}",
-            str(src_path)
-        ]
-
-        try:
-            subprocess.run(gs_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        except Exception as e:
-            logger.error(e)
-            await message.answer("Ошибка Ghostscript.")
-            return
-
-        if not compressed_path.exists():
-            await message.answer("Не удалось сжать PDF.")
+        ok = compress_pdf(src_path, compressed_path)
+        if not ok:
+            await message.answer("Не удалось сжать PDF (ошибка Ghostscript).")
             return
 
         await message.answer_document(types.FSInputFile(compressed_path), caption="Готово.")
