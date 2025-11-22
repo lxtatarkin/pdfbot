@@ -809,6 +809,36 @@ async def main():
 
         return
 
+    @dp.message(F.photo)
+    async def handle_photo(message: types.Message):
+        user_id = message.from_user.id
+        mode = user_modes.get(user_id, "doc_photo")
+
+        # берём самое большое по размеру фото (последний элемент)
+        photo = message.photo[-1]
+
+        # проверка лимита по размеру
+        if not await check_size_or_reject(message, photo.file_size):
+            return
+
+        file = await bot.get_file(photo.file_id)
+
+        # делаем имя файла, чтобы сохранить на диск
+        filename = f"photo_{user_id}_{photo.file_id}.jpg"
+        src_path = FILES_DIR / filename
+        await bot.download_file(file.file_path, destination=src_path)
+
+        # сейчас для фоток делаем то же самое, что и для "Документ/фото → PDF":
+        pdf_path = image_file_to_pdf(src_path)
+        if not pdf_path:
+            await message.answer("Не удалось конвертировать изображение.")
+            return
+
+        await message.answer_document(
+            types.FSInputFile(pdf_path),
+            caption="Готово."
+        )
+
     # ================================
     #   CALLBACKS: WATERMARK UI
     # ================================
