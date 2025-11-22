@@ -5,7 +5,7 @@ from io import BytesIO
 import os
 from pathlib import Path
 
-from aiogram import Bot, Dispatcher, types, F
+from aiogram import Bot, Dispatcher, types, F, Router
 from aiogram.filters import Command
 from aiogram.types import (
     ReplyKeyboardMarkup,
@@ -75,6 +75,7 @@ async def main():
 
     bot = Bot(token=TOKEN)
     dp = Dispatcher()
+    router = Router()
 
     logger.info("Bot started")
 
@@ -101,7 +102,7 @@ async def main():
     # ================================
     #   COMMAND: /start
     # ================================
-    @dp.message(Command("start"))
+    @router.message(Command("start"))
     async def start_cmd(message: types.Message):
         user_id = message.from_user.id
         username = message.from_user.username
@@ -139,7 +140,7 @@ async def main():
     # ================================
     #   COMMAND: /pro
     # ================================
-    @dp.message(Command("pro"))
+    @router.message(Command("pro"))
     async def pro_cmd(message: types.Message):
         user_id = message.from_user.id
         if is_pro(user_id):
@@ -171,7 +172,7 @@ async def main():
     # ================================
     #   BUTTON MODES
     # ================================
-    @dp.message(F.text == "📉 Сжать PDF")
+    @router.message(F.text == "📉 Сжать PDF")
     async def mode_compress(message: types.Message):
         user_id = message.from_user.id
         user_modes[user_id] = "compress"
@@ -180,7 +181,7 @@ async def main():
         user_pages_state[user_id] = {}
         await message.answer("Режим: сжатие PDF. Пришли PDF.", reply_markup=get_main_keyboard())
 
-    @dp.message(F.text == "📝 PDF → текст")
+    @router.message(F.text == "📝 PDF → текст")
     async def mode_pdf_text(message: types.Message):
         user_id = message.from_user.id
         user_modes[user_id] = "pdf_text"
@@ -189,7 +190,7 @@ async def main():
         user_pages_state[user_id] = {}
         await message.answer("Режим: PDF → текст. Пришли PDF.", reply_markup=get_main_keyboard())
 
-    @dp.message(F.text == "📄 Документ/фото → PDF")
+    @router.message(F.text == "📄 Документ/фото → PDF")
     async def mode_doc_photo(message: types.Message):
         user_id = message.from_user.id
         user_modes[user_id] = "doc_photo"
@@ -201,7 +202,7 @@ async def main():
             reply_markup=get_main_keyboard()
         )
 
-    @dp.message(F.text == "📎 Объединить PDF")
+    @router.message(F.text == "📎 Объединить PDF")
     async def mode_merge(message: types.Message):
         user_id = message.from_user.id
         user_modes[user_id] = "merge"
@@ -215,7 +216,7 @@ async def main():
             reply_markup=get_main_keyboard()
         )
 
-    @dp.message(F.text == "✂️ Разделить PDF")
+    @router.message(F.text == "✂️ Разделить PDF")
     async def mode_split(message: types.Message):
         user_id = message.from_user.id
         user_modes[user_id] = "split"
@@ -227,7 +228,7 @@ async def main():
             reply_markup=get_main_keyboard()
         )
 
-    @dp.message(F.text == "🔍 OCR")
+    @router.message(F.text == "🔍 OCR")
     async def mode_ocr(message: types.Message):
         user_id = message.from_user.id
         user_modes[user_id] = "ocr"
@@ -246,7 +247,7 @@ async def main():
                 "Пришли PDF-скан или изображение (фото/картинка). Я верну TXT-файл с распознанным текстом."
             )
 
-    @dp.message(F.text == "📑 Searchable PDF")
+    @router.message(F.text == "📑 Searchable PDF")
     async def mode_searchable_pdf(message: types.Message):
         user_id = message.from_user.id
         user_modes[user_id] = "searchable_pdf"
@@ -266,7 +267,7 @@ async def main():
                 "Пришли сканированный PDF. Я верну PDF, в котором текст можно выделять и искать."
             )
 
-    @dp.message(F.text == "🧩 Редактор страниц")
+    @router.message(F.text == "🧩 Редактор страниц")
     async def mode_pages(message: types.Message):
         user_id = message.from_user.id
         user_merge_files[user_id] = []
@@ -289,7 +290,7 @@ async def main():
                 reply_markup=get_main_keyboard()
             )
 
-    @dp.message(F.text == "🛡 Водяной знак")
+    @router.message(F.text == "🛡 Водяной знак")
     async def mode_watermark(message: types.Message):
         user_id = message.from_user.id
         user_modes[user_id] = "watermark"
@@ -314,7 +315,7 @@ async def main():
     # ================================
     #   HANDLE PDF
     # ================================
-    @dp.message(F.document & (F.document.mime_type == "application/pdf"))
+    @router.message(F.document & (F.document.mime_type == "application/pdf"))
     async def handle_pdf(message: types.Message):
         user_id = message.from_user.id
         mode = user_modes.get(user_id, "compress")
@@ -521,7 +522,7 @@ async def main():
     # ================================
     #   DOC / IMAGE → PDF
     # ================================
-    @dp.message(F.document & (F.document.mime_type != "application/pdf"))
+    @router.message(F.document & (F.document.mime_type != "application/pdf"))
     async def handle_doc(message: types.Message):
         doc_msg = message.document
         filename = doc_msg.file_name or "file"
@@ -573,7 +574,7 @@ async def main():
     # ================================
     #   TEXT COMMANDS (PAGES + MERGE + WATERMARK)
     # ================================
-    @dp.message(F.text)
+    @router.message(F.text)
     async def handle_text(message: types.Message):
         user_id = message.from_user.id
         mode = user_modes.get(user_id, "compress")
@@ -811,7 +812,7 @@ async def main():
 
         return
 
-    @dp.message(F.photo)
+    @router.message(F.photo)
     async def handle_photo(message: types.Message):
         user_id = message.from_user.id
         mode = user_modes.get(user_id, "doc_photo")
@@ -846,7 +847,7 @@ async def main():
     # ================================
     #   CALLBACKS: WATERMARK UI
     # ================================
-    @dp.callback_query(F.data.startswith("wm_pos:"))
+    @router.callback_query(F.data.startswith("wm_pos:"))
     async def wm_pos_callback(callback: types.CallbackQuery):
         user_id = callback.from_user.id
         state = user_watermark_state.setdefault(user_id, {})
@@ -866,7 +867,7 @@ async def main():
 
         await callback.answer()
 
-    @dp.callback_query(F.data == "wm_toggle_mosaic")
+    @router.callback_query(F.data == "wm_toggle_mosaic")
     async def wm_mosaic_callback(callback: types.CallbackQuery):
         user_id = callback.from_user.id
         state = user_watermark_state.setdefault(user_id, {})
@@ -884,7 +885,7 @@ async def main():
 
         await callback.answer()
 
-    @dp.callback_query(F.data == "wm_apply")
+    @router.callback_query(F.data == "wm_apply")
     async def wm_apply_callback(callback: types.CallbackQuery):
         user_id = callback.from_user.id
         state = user_watermark_state.get(user_id) or {}
@@ -922,7 +923,7 @@ async def main():
     # ================================
     #   CALLBACKS: PAGES EDITOR
     # ================================
-    @dp.callback_query(F.data == "pages_action:rotate")
+    @router.callback_query(F.data == "pages_action:rotate")
     async def pages_rotate_action(callback: types.CallbackQuery):
         user_id = callback.from_user.id
         state = user_pages_state.get(user_id) or {}
@@ -963,7 +964,7 @@ async def main():
 
         await callback.answer()
 
-    @dp.callback_query(F.data == "pages_action:delete")
+    @router.callback_query(F.data == "pages_action:delete")
     async def pages_delete_action(callback: types.CallbackQuery):
         user_id = callback.from_user.id
         state = user_pages_state.get(user_id) or {}
@@ -989,7 +990,7 @@ async def main():
         )
         await callback.answer()
 
-    @dp.callback_query(F.data == "pages_action:extract")
+    @router.callback_query(F.data == "pages_action:extract")
     async def pages_extract_action(callback: types.CallbackQuery):
         user_id = callback.from_user.id
         state = user_pages_state.get(user_id) or {}
@@ -1016,7 +1017,7 @@ async def main():
         )
         await callback.answer()
 
-    @dp.callback_query(F.data == "pages_action:cancel")
+    @router.callback_query(F.data == "pages_action:cancel")
     async def pages_cancel_action(callback: types.CallbackQuery):
         user_id = callback.from_user.id
         user_pages_state[user_id] = {}
@@ -1028,7 +1029,7 @@ async def main():
         )
         await callback.answer()
 
-    @dp.callback_query(F.data.startswith("pages_rotate_angle:"))
+    @router.callback_query(F.data.startswith("pages_rotate_angle:"))
     async def pages_rotate_angle_callback(callback: types.CallbackQuery):
         user_id = callback.from_user.id
         data = callback.data.split(":", 1)[1]  # "+90" / "-90" / "180"
@@ -1100,7 +1101,7 @@ async def main():
         )
         await callback.answer()
 
-    @dp.callback_query(F.data == "pages_back_to_menu")
+    @router.callback_query(F.data == "pages_back_to_menu")
     async def pages_back_to_menu_callback(callback: types.CallbackQuery):
         user_id = callback.from_user.id
         state = user_pages_state.get(user_id) or {}
@@ -1124,6 +1125,7 @@ async def main():
     # ================================
     #   START BOT
     # ================================
+    dp.include_router(router)    
     await dp.start_polling(bot)
 
 
