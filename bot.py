@@ -42,6 +42,27 @@ from pdf_services import (
     image_file_to_pdf,
     office_doc_to_pdf,
 )
+from handlers.start import router as start_router
+
+    # ===== check size helper =====
+    async def check_size_or_reject(message: types.Message, size_bytes: int | None) -> bool:
+        user_id = message.from_user.id
+        max_size = get_user_limit(user_id)
+        tier = "PRO" if is_pro(user_id) else "FREE"
+
+        if size_bytes is not None and size_bytes > max_size:
+            await message.answer(
+                f"Файл слишком большой для тарифа ({tier}).\n"
+                f"Лимит: {format_mb(max_size)}.\n\n"
+                "Для больших файлов нужен PRO.\n"
+                "Смотрите /pro."
+            )
+            logger.info(
+                f"User {user_id} exceeded size limit: file={size_bytes}, limit={max_size}"
+            )
+            return False
+
+        return True
 
 # =========================
 #   USER STATES
@@ -78,96 +99,6 @@ async def main():
     router = Router()
 
     logger.info("Bot started")
-
-    # ===== check size helper =====
-    async def check_size_or_reject(message: types.Message, size_bytes: int | None) -> bool:
-        user_id = message.from_user.id
-        max_size = get_user_limit(user_id)
-        tier = "PRO" if is_pro(user_id) else "FREE"
-
-        if size_bytes is not None and size_bytes > max_size:
-            await message.answer(
-                f"Файл слишком большой для тарифа ({tier}).\n"
-                f"Лимит: {format_mb(max_size)}.\n\n"
-                "Для больших файлов нужен PRO.\n"
-                "Смотрите /pro."
-            )
-            logger.info(
-                f"User {user_id} exceeded size limit: file={size_bytes}, limit={max_size}"
-            )
-            return False
-
-        return True
-
-    # ================================
-    #   COMMAND: /start
-    # ================================
-    @router.message(Command("start"))
-    async def start_cmd(message: types.Message):
-        user_id = message.from_user.id
-        username = message.from_user.username
-
-        user_modes[user_id] = "compress"
-        user_merge_files[user_id] = []
-        user_watermark_state[user_id] = {}
-        user_pages_state[user_id] = {}
-
-        tier = "PRO" if is_pro(user_id) else "FREE"
-        limit_mb = format_mb(get_user_limit(user_id))
-
-        logger.info(f"/start from {user_id} ({username}), tier={tier}")
-        await message.answer(
-            "👋 Привет! Я конвертирую и обрабатываю файлы в PDF.\n\n"
-            "Выбери режим на клавиатуре и пришли файл:\n\n"
-            "Основные инструменты:\n"
-            "• 📉 Сжать PDF\n"
-            "• 📎 Объединить PDF\n"
-            "• ✂️ Разделить PDF\n"
-            "• 📝 PDF → текст\n"
-            "• 📄 Документ/фото → PDF\n\n"
-            "PRO-инструменты:\n"
-            "• 🔍 OCR\n"
-            "• 📑 Searchable PDF\n"
-            "• 🧩 Редактор страниц\n"
-            "• 🛡 Водяной знак\n\n"
-            f"Текущий тариф: <b>{tier}</b>\n"
-            f"Лимит: <b>{limit_mb}</b>\n\n"
-            "Подключить PRO-версию: /pro",
-            reply_markup=get_main_keyboard(),
-            parse_mode="HTML"
-        )
-
-    # ================================
-    #   COMMAND: /pro
-    # ================================
-    @router.message(Command("pro"))
-    async def pro_cmd(message: types.Message):
-        user_id = message.from_user.id
-        if is_pro(user_id):
-            await message.answer(
-                "✅ У вас уже PRO-доступ.\n"
-                f"Текущий лимит: {format_mb(PRO_MAX_SIZE)}.\n\n"
-                "Доступные PRO-функции:\n"
-                "• OCR (сканы/фото → текст)\n"
-                "• Searchable PDF (скан → PDF с выделяемым текстом)\n"
-                "• Редактор страниц PDF (поворот/удаление/извлечение)\n"
-                "• Водяные знаки для PDF\n"
-                "• Файлы до 100 МБ",
-                parse_mode="HTML"
-            )
-        else:
-            await message.answer(
-                "💼 <b>PRO-доступ</b>\n\n"
-                "Что даёт сейчас:\n"
-                "• Лимит до 100 МБ\n"
-                "• OCR (сканы и фото → текст)\n"
-                "• Searchable PDF (скан → PDF с выделяемым текстом)\n"
-                "• Редактор страниц PDF (поворот/удаление/извлечение)\n"
-                "• Водяные знаки для PDF\n"
-                "• Приоритет в очереди (планируется)\n\n"
-                "Чтобы подключить PRO — напишите владельцу бота.",
-                parse_mode="HTML"
-            )
 
     # ================================
     #   BUTTON MODES
@@ -1122,7 +1053,8 @@ async def main():
     # ================================
     #   START BOT
     # ================================
-    dp.include_router(router)    
+    dp.include_router(router)
+    dp.include_router(start_router)   
     await dp.start_polling(bot)
 
 
