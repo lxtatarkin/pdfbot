@@ -36,6 +36,10 @@ from pdf_services import (
     apply_watermark,
     parse_page_range,
     rotate_page_inplace,
+    ocr_pdf_to_txt,
+    create_searchable_pdf,
+    split_pdf_to_pages,
+    merge_pdfs,
 )
 
 # =========================
@@ -364,38 +368,10 @@ async def main():
 
             await message.answer("Распознаю текст в PDF (OCR)...")
 
-            try:
-                pdf_doc = fitz.open(str(src_path))
-            except Exception as e:
-                logger.error(f"OCR PDF open error: {e}")
-                await message.answer("Не удалось открыть PDF для OCR.")
-                return
-
-            all_text_parts: list[str] = []
-
-            try:
-                for page_index, page in enumerate(pdf_doc, start=1):
-                    pix = page.get_pixmap(dpi=300)
-                    img_path = FILES_DIR / f"ocr_{user_id}_{page_index}.png"
-                    pix.save(img_path)
-
-                    text_page = pytesseract.image_to_string(
-                        str(img_path),
-                        lang="rus+eng"
-                    )
-                    all_text_parts.append(text_page)
-            except Exception as e:
-                logger.error(f"OCR processing error: {e}")
-                await message.answer("Ошибка при распознавании текста.")
-                return
-
-            full_text = "\n\n".join(all_text_parts).strip()
-            if not full_text:
+            txt_path = ocr_pdf_to_txt(src_path, user_id, lang="rus+eng")
+            if not txt_path:
                 await message.answer("Не удалось распознать текст (возможно очень плохое качество скана).")
                 return
-
-            txt_path = FILES_DIR / (Path(doc_msg.file_name).stem + "_ocr.txt")
-            txt_path.write_text(full_text, encoding="utf-8")
 
             await message.answer_document(
                 types.FSInputFile(txt_path),
@@ -414,40 +390,9 @@ async def main():
 
             await message.answer("Создаю searchable PDF (можно выделять текст)...")
 
-            try:
-                pdf_doc = fitz.open(str(src_path))
-            except Exception as e:
-                logger.error(f"Searchable PDF open error: {e}")
-                await message.answer("Не удалось открыть PDF.")
-                return
-
-            merger = PdfMerger()
-            try:
-                for page_index, page in enumerate(pdf_doc, start=1):
-                    pix = page.get_pixmap(dpi=300)
-                    img_bytes = pix.tobytes("png")
-                    img = Image.open(BytesIO(img_bytes))
-
-                    pdf_bytes = pytesseract.image_to_pdf_or_hocr(
-                        img,
-                        extension="pdf",
-                        lang="rus+eng"
-                    )
-
-                    merger.append(PdfReader(BytesIO(pdf_bytes)))
-
-                out_path = FILES_DIR / (Path(doc_msg.file_name).stem + "_searchable.pdf")
-                with open(out_path, "wb") as f:
-                    merger.write(f)
-                merger.close()
-                pdf_doc.close()
-            except Exception as e:
-                logger.error(f"Searchable PDF error: {e}")
+            out_path = create_searchable_pdf(src_path, lang="rus+eng")
+            if not out_path:
                 await message.answer("Ошибка при создании searchable PDF.")
-                return
-
-            if not out_path.exists():
-                await message.answer("Не удалось создать searchable PDF.")
                 return
 
             await message.answer_document(
@@ -478,17 +423,31 @@ async def main():
         # =============================
         # MERGE MODE
         # =============================
-        if mode == "merge":
-            files_list = user_merge_files.setdefault(user_id, [])
-            if len(files_list) >= 10:
-                await message.answer("Максимум — 10 файлов.")
+        if mode == "merge" and text_val in ("готово", "/done", "/merge"):
+            files_list = user_merge_files.get(user_id, [])
+
+            if len(files_list) < 2:
+                await message.answer("Добавьте минимум 2 PDF.")
                 return
 
-            files_list.append(src_path)
-            await message.answer(
-                f"Добавлено. Сейчас файлов: {len(files_list)}.\n"
-                "Когда закончишь — напиши «Готово»."
-            )
+            await message.answer(f"Объединяю {len(files_list)} PDF...")
+
+            merged_name = Path(files_list[0]).stem + "_merged.pdf"
+            merged_path = FILES_DIR / merged_name
+
+            try:
+                merger = PdfMerger()
+                for p in files_list:
+                    merger.append(str(p))
+                merger.write(str(merged_path))
+                merger.close()
+            except Exception as e:
+                logger.error(e)
+                await message.answer("Ошибка при объединении.")
+                return
+
+            await message.answer_document(types.FSInputFile(merged_path), caption="Готово!")
+            user_merge_files[user_id] = []
             return
 
         # =============================
@@ -523,33 +482,17 @@ async def main():
         # =============================
         if mode == "split":
             await message.answer("Разделяю PDF...")
-            try:
-                reader = PdfReader(str(src_path))
-            except Exception as e:
-                logger.error(e)
+
+            pages = split_pdf_to_pages(src_path)
+            if pages is None:
                 await message.answer("Не удалось открыть PDF.")
                 return
 
-            n = len(reader.pages)
-            if n <= 1:
+            if len(pages) <= 1:
                 await message.answer("Там всего 1 страница.")
                 return
 
-            base = Path(doc_msg.file_name).stem
-            pages = []
-
-            try:
-                for i in range(n):
-                    writer = PdfWriter()
-                    writer.add_page(reader.pages[i])
-                    out_path = FILES_DIR / f"{base}_page_{i+1}.pdf"
-                    with open(out_path, "wb") as f:
-                        writer.write(f)
-                    pages.append(out_path)
-            except Exception as e:
-                logger.error(e)
-                await message.answer("Ошибка при разделении.")
-                return
+            n = len(pages)
 
             if n <= 10:
                 for i, p in enumerate(pages, start=1):
@@ -558,7 +501,8 @@ async def main():
                         caption=f"Страница {i}/{n}"
                     )
             else:
-                zip_path = FILES_DIR / f"{base}_pages.zip"
+                import zipfile  # можешь оставить импорт вверху, тогда эту строку не нужно
+                zip_path = FILES_DIR / f"{src_path.stem}_pages.zip"
                 with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
                     for p in pages:
                         zf.write(p, arcname=p.name)
