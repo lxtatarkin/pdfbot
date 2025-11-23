@@ -9,8 +9,6 @@ import fitz  # PyMuPDF
 import pytesseract
 from PIL import Image
 from PyPDF2 import PdfReader, PdfWriter, PdfMerger
-from services.pdf import split_pdf_to_pages
-from services.merge import merge_pdfs
 
 from settings import FILES_DIR, logger
 
