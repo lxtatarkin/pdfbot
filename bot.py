@@ -338,36 +338,6 @@ async def main():
             return
 
         # =============================
-        # MERGE MODE
-        # =============================
-        if mode == "merge" and text_val in ("готово", "/done", "/merge"):
-            files_list = user_merge_files.get(user_id, [])
-
-            if len(files_list) < 2:
-                await message.answer("Добавьте минимум 2 PDF.")
-                return
-
-            await message.answer(f"Объединяю {len(files_list)} PDF...")
-
-            merged_name = Path(files_list[0]).stem + "_merged.pdf"
-            merged_path = FILES_DIR / merged_name
-
-            try:
-                merger = PdfMerger()
-                for p in files_list:
-                    merger.append(str(p))
-                merger.write(str(merged_path))
-                merger.close()
-            except Exception as e:
-                logger.error(e)
-                await message.answer("Ошибка при объединении.")
-                return
-
-            await message.answer_document(types.FSInputFile(merged_path), caption="Готово!")
-            user_merge_files[user_id] = []
-            return
-
-        # =============================
         # PDF → TEXT
         # =============================
         if mode == "pdf_text":
@@ -1037,8 +1007,8 @@ async def main():
     # ================================
     #   START BOT
     # ================================
+    dp.include_router(start_router) 
     dp.include_router(router)
-    dp.include_router(start_router)   
     await dp.start_polling(bot)
 
 
