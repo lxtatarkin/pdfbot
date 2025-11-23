@@ -2,8 +2,12 @@ FROM python:3.11-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# ===== system deps: LibreOffice + шрифты + Tesseract =====
+# ===== system deps =====
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget \
+    unzip \
+    fontconfig \
+    libfreetype6 \
     libreoffice-core \
     libreoffice-writer \
     libreoffice-calc \
@@ -12,26 +16,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr \
     tesseract-ocr-eng \
     tesseract-ocr-rus \
-    fontconfig \
-    libfreetype6 \
-    ttf-mscorefonts-installer \
     && rm -rf /var/lib/apt/lists/*
 
-# ===== настройка шрифтов =====
-# отключаем субпиксельное сглаживание и включаем более "жёсткий" хинтинг
-RUN mkdir -p /etc/fonts && \
-    printf '%s\n' \
-'<?xml version="1.0"?>' \
-'<!DOCTYPE fontconfig SYSTEM "fonts.dtd">' \
-'<fontconfig>' \
-'  <match target="font">' \
-'    <edit name="rgba" mode="assign"><const>none</const></edit>' \
-'    <edit name="hinting" mode="assign"><bool>true</bool></edit>' \
-'    <edit name="hintstyle" mode="assign"><const>hintfull</const></edit>' \
-'  </match>' \
-'</fontconfig>' \
-    > /etc/fonts/local.conf && \
-    fc-cache -f -v
+# ===== базовые corefonts (Arial, Times, Verdana и т.п.) =====
+RUN mkdir -p /usr/share/fonts/truetype/msttcore && \
+    wget -O /tmp/corefonts.zip https://downloads.sourceforge.net/corefonts/corefonts-1.zip && \
+    unzip /tmp/corefonts.zip -d /tmp/corefonts && \
+    cp /tmp/corefonts/*.ttf /usr/share/fonts/truetype/msttcore/ || true && \
+    rm -rf /tmp/corefonts /tmp/corefonts.zip
+
+# ===== кастомные шрифты (Calibri, Cambria и др.) из папки fonts/ проекта =====
+# ВАЖНО: ты сам кладёшь сюда свои .ttf из легального источника (Office и т.п.)
+COPY fonts /usr/share/fonts/truetype/custom
+
+# обновляем кеш шрифтов
+RUN fc-cache -f -v
 
 # ===== окружение для LibreOffice (стабильный рендер) =====
 ENV SAL_USE_VCLPLUGIN=gen \
