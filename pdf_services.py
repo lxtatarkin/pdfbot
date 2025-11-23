@@ -121,7 +121,7 @@ def rotate_page_inplace(page, angle: int):
     Поворачивает страницу PyPDF2 на указанный угол (кратный 90).
     Работает и с PyPDF2 >= 3.0.0 (page.rotate), и со старыми версиями.
     """
-    from settings import logger as _logger  # чтобы не было циклического импорта (на всякий случай)
+    from settings import logger as _logger
 
     angle = angle % 360
     if angle == 0:
@@ -218,6 +218,65 @@ def create_searchable_pdf(pdf_path: Path, lang: str = "rus+eng") -> Path | None:
     return out_path if out_path.exists() else None
 
 
+def split_pdf_to_pages(pdf_path: Path) -> list[Path] | None:
+    """
+    Делит PDF на отдельные страницы.
+    Возвращает:
+      - None — если не удалось открыть файл,
+      - []   — если в документе 1 страница,
+      - список путей к созданным PDF-страницам.
+    """
+    try:
+        reader = PdfReader(str(pdf_path))
+    except Exception as e:
+        logger.error(f"Split PDF open error: {e}")
+        return None
+
+    n = len(reader.pages)
+    if n <= 1:
+        return []
+
+    pages_paths: list[Path] = []
+    base = pdf_path.stem
+
+    try:
+        for i in range(n):
+            writer = PdfWriter()
+            writer.add_page(reader.pages[i])
+            out_path = FILES_DIR / f"{base}_page_{i + 1}.pdf"
+            with open(out_path, "wb") as f:
+                writer.write(f)
+            pages_paths.append(out_path)
+    except Exception as e:
+        logger.error(f"Split PDF write error: {e}")
+        return None
+
+    return pages_paths
+
+
+def merge_pdfs(pdf_paths: Sequence[Path], out_path: Path) -> Path | None:
+    """
+    Объединяет несколько PDF в один.
+    out_path — полный путь к итоговому файлу.
+    Возвращает out_path или None при ошибке.
+    """
+    if not pdf_paths:
+        return None
+
+    try:
+        merger = PdfMerger()
+        for p in pdf_paths:
+            merger.append(str(p))
+        with open(out_path, "wb") as f:
+            merger.write(f)
+        merger.close()
+    except Exception as e:
+        logger.error(f"Merge PDFs error: {e}")
+        return None
+
+    return out_path if out_path.exists() else None
+
+
 def extract_text_from_pdf(pdf_path: Path) -> str | None:
     """
     Извлекает текст из обычного PDF (не скана).
@@ -275,6 +334,7 @@ def compress_pdf(input_path: Path, output_path: Path) -> bool:
         return False
 
     return output_path.exists()
+
 
 def image_file_to_pdf(src_path: Path) -> Path | None:
     """
