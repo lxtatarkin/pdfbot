@@ -70,9 +70,9 @@ async def check_size_or_reject(message: types.Message, size_bytes: int | None) -
 
     return True
 
-# =========================
+# ==========================
 #   MAIN
-# =========================
+# ==========================
 async def main():
     if not TOKEN:
         logger.error("BOT_TOKEN is not set in environment")

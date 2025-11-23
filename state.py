@@ -16,5 +16,5 @@ user_merge_files: dict[int, list[Path]] = {}
 user_watermark_state: dict[int, dict] = {}
 
 # состояние для редактора страниц:
-# user_id -> {"pdf_path": Path, "pages": int, ...}
+# user_id -> {"pdf_path": Path, "pages": int, ... }
 user_pages_state: dict[int, dict] = {}

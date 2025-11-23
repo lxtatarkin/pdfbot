@@ -6,7 +6,7 @@ from settings import (
     get_user_limit,
     format_mb,
     logger,
-    PRO_MAX_SIZE,  # если у тебя PRO_MAX_SIZE в другом месте – импорт поправь
+    PRO_MAX_SIZE,
 )
 from state import (
     user_modes,
