@@ -42,6 +42,12 @@ from pdf_services import (
     image_file_to_pdf,
     office_doc_to_pdf,
 )
+from state import (
+    user_modes,
+    user_merge_files,
+    user_watermark_state,
+    user_pages_state,
+)
 from handlers.start import router as start_router
 
 # ===== check size helper =====
@@ -63,28 +69,6 @@ async def check_size_or_reject(message: types.Message, size_bytes: int | None) -
         return False
 
     return True
-
-# =========================
-#   USER STATES
-# =========================
-# mode:
-#   compress, pdf_text, doc_photo, merge, split, ocr, searchable_pdf,
-#   watermark, watermark_wait_text, watermark_wait_style,
-#   pages_wait_pdf, pages_menu,
-#   pages_rotate_wait_pages, pages_rotate_wait_angle,
-#   pages_delete_wait_pages, pages_extract_wait_pages
-user_modes: dict[int, str] = {}
-
-# list of files for merging
-user_merge_files: dict[int, list[Path]] = {}
-
-# состояние для водяных знаков: user_id -> {"pdf_path": Path, "text": str, "pos": "11", "mosaic": bool}
-user_watermark_state: dict[int, dict] = {}
-
-# состояние для редактора страниц: user_id -> {"pdf_path": Path, "pages": int, ...}
-# доп. поля по ситуации:
-#   "rotate_pages": list[int]
-user_pages_state: dict[int, dict] = {}
 
 # =========================
 #   MAIN
