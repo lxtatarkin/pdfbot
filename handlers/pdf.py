@@ -11,7 +11,7 @@ from state import (
     user_pages_state,
 )
 from keyboards import get_pages_menu_keyboard
-from pdf_services import (
+from services.pdf_services import (
     ocr_pdf_to_txt,
     create_searchable_pdf,
     split_pdf_to_pages,
