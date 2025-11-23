@@ -1,4 +1,17 @@
 
+from aiogram import Router, types, F
+
+from settings import is_pro
+from state import (
+    user_modes,
+    user_merge_files,
+    user_watermark_state,
+    user_pages_state,
+)
+from keyboards import get_main_keyboard
+
+router = Router()
+    
     @router.message(F.text == "📉 Сжать PDF")
     async def mode_compress(message: types.Message):
         user_id = message.from_user.id

@@ -1,6 +1,11 @@
-    # ================================
-    #   DOC / IMAGE → PDF
-    # ================================
+from aiogram import Router, types, F, Bot
+
+from settings import FILES_DIR
+from pdf_services import image_file_to_pdf, office_doc_to_pdf
+from utils import check_size_or_reject
+
+router = Router()
+
     @router.message(F.document & (F.document.mime_type != "application/pdf"))
     async def handle_doc(message: types.Message, bot: Bot):
         doc_msg = message.document

@@ -1,6 +1,14 @@
-    # ================================
-    #   CALLBACKS: WATERMARK UI
-    # ================================
+from pathlib import Path
+
+from aiogram import Router, types, F
+
+from settings import logger
+from state import user_modes, user_watermark_state
+from keyboards import get_watermark_keyboard
+from pdf_services import apply_watermark
+
+router = Router()
+
     @router.callback_query(F.data.startswith("wm_pos:"))
     async def wm_pos_callback(callback: types.CallbackQuery):
         user_id = callback.from_user.id

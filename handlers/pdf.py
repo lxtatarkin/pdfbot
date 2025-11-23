@@ -1,6 +1,27 @@
-    # ================================
-    #   HANDLE PDF
-    # ================================
+from pathlib import Path
+
+from aiogram import Router, types, F, Bot
+from PyPDF2 import PdfReader, PdfMerger
+
+from settings import FILES_DIR, logger, is_pro
+from state import (
+    user_modes,
+    user_merge_files,
+    user_watermark_state,
+    user_pages_state,
+)
+from keyboards import get_pages_menu_keyboard
+from pdf_services import (
+    ocr_pdf_to_txt,
+    create_searchable_pdf,
+    split_pdf_to_pages,
+    extract_text_from_pdf,
+    compress_pdf,
+)
+from utils import check_size_or_reject
+
+router = Router()
+
     @router.message(F.document & (F.document.mime_type == "application/pdf"))
     async def handle_pdf(message: types.Message, bot: Bot):
         user_id = message.from_user.id

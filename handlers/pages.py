@@ -1,6 +1,15 @@
-    # ================================
-    #   CALLBACKS: PAGES EDITOR
-    # ================================
+from pathlib import Path
+
+from aiogram import Router, types, F
+from PyPDF2 import PdfReader, PdfWriter
+
+from settings import FILES_DIR, logger, is_pro
+from state import user_modes, user_pages_state
+from keyboards import get_pages_menu_keyboard, get_rotate_keyboard
+from pdf_services import rotate_page_inplace
+
+router = Router()
+
     @router.callback_query(F.data == "pages_action:rotate")
     async def pages_rotate_action(callback: types.CallbackQuery):
         user_id = callback.from_user.id
