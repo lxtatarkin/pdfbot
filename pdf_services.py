@@ -355,29 +355,51 @@ def image_file_to_pdf(src_path: Path) -> Path | None:
 def office_doc_to_pdf(src_path: Path) -> Path | None:
     """
     Конвертирует офисный документ (DOC/DOCX/XLSX/PPTX...) в PDF через LibreOffice.
-    Возвращает путь к PDF или None при ошибке.
+    Работает корректно в Docker/Railway.
     """
-    lo_path = "soffice" if os.name != "nt" else r"C:\Program Files\LibreOffice\program\soffice.exe"
+    lo_path = "soffice"  # в Linux всегда так
     logger.info(f"LibreOffice binary: {lo_path}")
 
-    try:
-        result = subprocess.run(
-            [lo_path, "--headless", "--convert-to", "pdf", "--outdir", str(FILES_DIR), str(src_path)],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-    except Exception as e:
-        logger.error(f"LibreOffice run error: {e}")
+    # создаём выходную папку
+    FILES_DIR.mkdir(exist_ok=True, parents=True)
+
+    # команда
+    cmd = [
+        lo_path,
+        "--headless",
+        "--nologo",
+        "--nofirststartwizard",
+        "--convert-to", "pdf:writer_pdf_Export",
+        "--outdir", str(FILES_DIR),
+        str(src_path),
+    ]
+
+    logger.info("Running LibreOffice: %s", " ".join(cmd))
+
+    proc = subprocess.run(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    logger.info("LibreOffice return code: %s", proc.returncode)
+    logger.info("LibreOffice stdout: %s", proc.stdout.strip())
+    logger.info("LibreOffice stderr: %s", proc.stderr.strip())
+
+    if proc.returncode != 0:
+        logger.error("LibreOffice failed with nonzero exit code")
         return None
 
-    if result.returncode != 0:
-        logger.error(f"LibreOffice exit code {result.returncode}: {result.stderr}")
-        return None
+    # НАХОДИМ PDF по факту, а не по имени
+    pdf_candidates = list(FILES_DIR.glob("*.pdf"))
+    logger.info("PDF candidates found: %s", pdf_candidates)
 
-    pdf_path = FILES_DIR / (src_path.stem + ".pdf")
-    if not pdf_path.exists():
+    if not pdf_candidates:
         logger.error("PDF not found after LibreOffice conversion.")
         return None
 
-    return pdf_path
+    # выбираем PDF с максимальным временем изменения — почти всегда правильный
+    pdf_candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return pdf_candidates[0]
+
