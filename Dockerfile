@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fontconfig \
     libfreetype6 \
     xvfb \
+    xauth \
     libreoffice-writer \
     libreoffice-calc \
     libreoffice-impress \
