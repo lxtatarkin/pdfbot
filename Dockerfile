@@ -8,10 +8,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     fontconfig \
     libfreetype6 \
-    libreoffice-core \
     libreoffice-writer \
     libreoffice-calc \
     libreoffice-impress \
+    libreoffice-core \
+    libreoffice-headless \
+    fonts-dejavu-core \
     ghostscript \
     tesseract-ocr \
     tesseract-ocr-eng \
