@@ -2,36 +2,42 @@ FROM python:3.11-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# ===== system deps =====
+# базовые зависимости
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
-    unzip \
+    tar \
     fontconfig \
     libfreetype6 \
-    libreoffice \
-    ure \
-    fonts-dejavu-core \
-    ghostscript \
+    libxrender1 \
+    libxext6 \
+    libxinerama1 \
+    libgl1 \
+    libglu1-mesa \
     tesseract-ocr \
     tesseract-ocr-eng \
     tesseract-ocr-rus \
+    ghostscript \
     && rm -rf /var/lib/apt/lists/*
 
-# ===== окружение LibreOffice =====
-ENV SAL_USE_VCLPLUGIN=gen \
-    VCL_PLUGIN=gen \
-    SAL_FORCEDPI=96 \
-    PYTHONUNBUFFERED=1
+# ===== Устанавливаем LibreOffice HEADLESS =====
+RUN wget https://download.documentfoundation.org/libreoffice/stable/24.2.3/deb/x86_64/LibreOffice_24.2.3_Linux_x86-64_deb.tar.gz -O /tmp/lo.tar.gz \
+    && tar -xvf /tmp/lo.tar.gz -C /tmp \
+    && dpkg -i /tmp/LibreOffice_24.2.3.2_Linux_x86-64_deb/DEBS/*.deb \
+    && rm -rf /tmp/lo.tar.gz /tmp/LibreOffice*
+
+# шрифты
+RUN mkdir -p /usr/share/fonts/truetype/custom
+
+# окружение для headless режима
+ENV SAL_USE_VCLPLUGIN=gen
+ENV VCL_PLUGIN=gen
+ENV DISPLAY=
 
 WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# копируем весь проект (включая init_fonts.sh, который создадим ниже)
 COPY . .
 
-# делаем скрипт исполняемым
-RUN chmod +x /app/init_fonts.sh
-
-CMD ["bash", "/app/init_fonts.sh"]
+CMD ["python", "bot.py"]
