@@ -336,7 +336,16 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "pro_pay_hint": (
             "💼 <b>PRO-доступ</b>\n\n"
             "Оплатите PRO банковской картой через защищённую страницу Stripe."
-        ),        
+        ),
+
+        "pro_info_short": (
+        "💼 <b>PRO-доступ</b>\n\n"
+        "• Лимит до 100 МБ\n"
+        "• OCR и Searchable PDF\n"
+        "• Редактор страниц\n"
+        "• Водяные знаки\n\n"
+        "Нажмите кнопку ниже, чтобы оформить подписку:"
+        )
     },
 
     "en": {
@@ -628,6 +637,15 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "pro_pay_hint": (
         "💼 <b>PRO access</b>\n\n"
         "Pay for PRO with your bank card via secure Stripe checkout."
+        ),
+
+        "pro_info_short": (
+        "💼 <b>PRO access</b>\n\n"
+        "• Limit up to 100 MB\n"
+        "• OCR & Searchable PDF\n"
+        "• Page editor\n"
+        "• Watermarks\n\n"
+        "Tap the button below to subscribe:"
         ),
     },
 }
