@@ -16,7 +16,7 @@ from state import (
     user_pages_state,
 )
 from keyboards import get_main_keyboard
-from i18n import set_user_lang, t  # локализация
+from i18n import set_user_lang, t
 
 router = Router()
 
@@ -25,9 +25,9 @@ router = Router()
 async def start_cmd(message: types.Message):
     user_id = message.from_user.id
     username = message.from_user.username
+    tg_lang = message.from_user.language_code
 
-    # определяем и сохраняем язык пользователя
-    tg_lang = message.from_user.language_code  # например: 'en', 'en-US', 'ru', 'ru-RU'
+    # автоопределение языка
     lang = set_user_lang(user_id, tg_lang)
 
     # сброс состояния пользователя
@@ -42,15 +42,9 @@ async def start_cmd(message: types.Message):
     logger.info(
         f"/start from {user_id} ({username}), tier={tier}, lang={lang}, tg_lang={tg_lang}"
     )
-
     await message.answer(
-        t(
-            user_id,
-            "start_main",
-            tier=tier,
-            limit_mb=limit_mb,
-        ),
-        reply_markup=get_main_keyboard(),
+        t(user_id, "start_main", tier=tier, limit_mb=limit_mb),
+        reply_markup=get_main_keyboard(user_id),
         parse_mode="HTML",
     )
 

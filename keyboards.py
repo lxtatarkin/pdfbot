@@ -1,3 +1,4 @@
+# keyboards.py
 from aiogram.types import (
     ReplyKeyboardMarkup,
     KeyboardButton,
@@ -8,9 +9,10 @@ from aiogram.types import (
 from i18n import t
 
 
-def get_main_keyboard(user_id: int) -> ReplyKeyboardMarkup:
+def get_main_keyboard(user_id: int = 0) -> ReplyKeyboardMarkup:
     """
-    Главное меню бота (ReplyKeyboard), локализованное по user_id.
+    Основная клавиатура.
+    Если user_id == 0, используем язык по умолчанию (en).
     """
     return ReplyKeyboardMarkup(
         keyboard=[
@@ -34,47 +36,47 @@ def get_main_keyboard(user_id: int) -> ReplyKeyboardMarkup:
                 KeyboardButton(text=t(user_id, "btn_main_watermark")),
             ],
         ],
-        resize_keyboard=True
+        resize_keyboard=True,
     )
 
 
-def get_pages_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
+def get_pages_menu_keyboard(user_id: int = 0) -> InlineKeyboardMarkup:
     """
-    Основное меню редактора страниц (inline keyboard), локализованное.
+    Основное меню редактора страниц.
     """
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
                     text=t(user_id, "pages_rotate"),
-                    callback_data="pages_action:rotate"
+                    callback_data="pages_action:rotate",
                 )
             ],
             [
                 InlineKeyboardButton(
                     text=t(user_id, "pages_delete"),
-                    callback_data="pages_action:delete"
+                    callback_data="pages_action:delete",
                 )
             ],
             [
                 InlineKeyboardButton(
                     text=t(user_id, "pages_extract"),
-                    callback_data="pages_action:extract"
+                    callback_data="pages_action:extract",
                 )
             ],
             [
                 InlineKeyboardButton(
                     text=t(user_id, "pages_cancel"),
-                    callback_data="pages_action:cancel"
+                    callback_data="pages_action:cancel",
                 )
             ],
         ]
     )
 
 
-def get_rotate_keyboard(user_id: int) -> InlineKeyboardMarkup:
+def get_rotate_keyboard(user_id: int = 0) -> InlineKeyboardMarkup:
     """
-    Клавиатура выбора угла поворота, с локализованной кнопкой 'Назад к меню'.
+    Клавиатура выбора угла поворота.
     """
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -86,17 +88,17 @@ def get_rotate_keyboard(user_id: int) -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton(
                     text=t(user_id, "pages_back"),
-                    callback_data="pages_back_to_menu"
+                    callback_data="pages_back_to_menu",
                 )
-            ]
+            ],
         ]
     )
 
 
 def get_watermark_keyboard(
-    user_id: int,
+    user_id: int = 0,
     pos: str | None = None,
-    mosaic: bool = False
+    mosaic: bool = False,
 ) -> InlineKeyboardMarkup:
     """
     Инлайн-клавиатура 3×3 для выбора позиции + чекбокс Mosaic + кнопка OK.
@@ -104,7 +106,6 @@ def get_watermark_keyboard(
     """
     grid: list[list[InlineKeyboardButton]] = []
 
-    # 3×3 сетка точек позиции
     for r in range(3):
         row: list[InlineKeyboardButton] = []
         for c in range(3):
@@ -113,20 +114,27 @@ def get_watermark_keyboard(
             row.append(
                 InlineKeyboardButton(
                     text=text,
-                    callback_data=f"wm_pos:{code}"
+                    callback_data=f"wm_pos:{code}",
                 )
             )
         grid.append(row)
 
-    # Лейбл для Mosaic
-    mosaic_label = t(user_id, "wm_mosaic")
-    mosaic_text = f"✅ {mosaic_label}" if mosaic else mosaic_label
-
-    grid.append([
-        InlineKeyboardButton(text=mosaic_text, callback_data="wm_toggle_mosaic")
-    ])
-    grid.append([
-        InlineKeyboardButton(text=t(user_id, "wm_ok"), callback_data="wm_apply")
-    ])
+    mosaic_text = f"✅ {t(user_id, 'wm_mosaic')}" if mosaic else t(user_id, "wm_mosaic")
+    grid.append(
+        [
+            InlineKeyboardButton(
+                text=mosaic_text,
+                callback_data="wm_toggle_mosaic",
+            )
+        ]
+    )
+    grid.append(
+        [
+            InlineKeyboardButton(
+                text=t(user_id, "wm_ok"),
+                callback_data="wm_apply",
+            )
+        ]
+    )
 
     return InlineKeyboardMarkup(inline_keyboard=grid)
