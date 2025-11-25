@@ -18,4 +18,5 @@ routers = [
     pages_router,
     watermark_router,
     merge_router,
+    pro_router,
 ]

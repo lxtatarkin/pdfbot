@@ -330,6 +330,13 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "wm_applying": "Добавляю водяной знак в PDF...",
         "wm_save_failed": "Не получилось сохранить PDF с водяным знаком.",
         "wm_done": "Готово: PDF с водяным знаком.",
+        
+        # ===== ОПЛАТА PRO =====
+        "pro_pay_button": "Оплатить PRO",
+        "pro_pay_hint": (
+            "💼 <b>PRO-доступ</b>\n\n"
+            "Оплатите PRO банковской картой через защищённую страницу Stripe."
+        ),        
     },
 
     "en": {
@@ -615,6 +622,13 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "wm_applying": "Applying watermark to PDF...",
         "wm_save_failed": "Failed to save PDF with watermark.",
         "wm_done": "Done: PDF with watermark.",
+
+        # ===== PRO PAYMENT =====
+        "pro_pay_button": "Pay for PRO",
+        "pro_pay_hint": (
+        "💼 <b>PRO access</b>\n\n"
+        "Pay for PRO with your bank card via secure Stripe checkout."
+        ),
     },
 }
 
