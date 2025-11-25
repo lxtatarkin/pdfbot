@@ -8,6 +8,7 @@ from settings import FILES_DIR, logger, is_pro
 from state import user_modes, user_pages_state
 from keyboards import get_pages_menu_keyboard, get_rotate_keyboard
 from pdf_services import rotate_page_inplace
+from i18n import t
 
 router = Router()
 
@@ -20,11 +21,11 @@ async def pages_rotate_action(callback: types.CallbackQuery):
     num_pages = state.get("pages")
 
     if not is_pro(user_id):
-        await callback.answer("Только для PRO.", show_alert=True)
+        await callback.answer(t(user_id, "pages_pro_only"), show_alert=True)
         return
 
     if not pdf_path or not Path(pdf_path).exists() or not num_pages:
-        await callback.answer("Нет загруженного PDF. Сначала пришли файл в режиме редактора.", show_alert=True)
+        await callback.answer(t(user_id, "pages_no_pdf_editor"), show_alert=True)
         return
 
     if num_pages == 1:
@@ -34,20 +35,14 @@ async def pages_rotate_action(callback: types.CallbackQuery):
         user_modes[user_id] = "pages_rotate_wait_angle"
 
         await callback.message.answer(
-            "В файле 1 страница.\nВыбери угол поворота:",
-            reply_markup=get_rotate_keyboard()
+            t(user_id, "pages_one_page_choose_angle"),
+            reply_markup=get_rotate_keyboard(user_id),
         )
     else:
         # несколько страниц — сначала спросить диапазон
         user_modes[user_id] = "pages_rotate_wait_pages"
         await callback.message.answer(
-            f"Страниц в файле: {num_pages}.\n\n"
-            "Какие страницы нужно повернуть?\n\n"
-            "Примеры:\n"
-            "• 2\n"
-            "• 1-3\n"
-            "• 1,3,5-7\n"
-            "• all"
+            t(user_id, "pages_rotate_ask_pages", num_pages=num_pages)
         )
 
     await callback.answer()
@@ -61,21 +56,16 @@ async def pages_delete_action(callback: types.CallbackQuery):
     num_pages = state.get("pages")
 
     if not is_pro(user_id):
-        await callback.answer("Только для PRO.", show_alert=True)
+        await callback.answer(t(user_id, "pages_pro_only"), show_alert=True)
         return
 
     if not pdf_path or not Path(pdf_path).exists() or not num_pages:
-        await callback.answer("Нет загруженного PDF. Сначала пришли файл.", show_alert=True)
+        await callback.answer(t(user_id, "pages_no_pdf"), show_alert=True)
         return
 
     user_modes[user_id] = "pages_delete_wait_pages"
     await callback.message.answer(
-        f"Страниц в файле: {num_pages}.\n\n"
-        "Какие страницы удалить?\n\n"
-        "Примеры:\n"
-        "• 2\n"
-        "• 1-3\n"
-        "• 1,3,5-7"
+        t(user_id, "pages_delete_ask_pages", num_pages=num_pages)
     )
     await callback.answer()
 
@@ -88,22 +78,16 @@ async def pages_extract_action(callback: types.CallbackQuery):
     num_pages = state.get("pages")
 
     if not is_pro(user_id):
-        await callback.answer("Только для PRO.", show_alert=True)
+        await callback.answer(t(user_id, "pages_pro_only"), show_alert=True)
         return
 
     if not pdf_path or not Path(pdf_path).exists() or not num_pages:
-        await callback.answer("Нет загруженного PDF. Сначала пришли файл.", show_alert=True)
+        await callback.answer(t(user_id, "pages_no_pdf"), show_alert=True)
         return
 
     user_modes[user_id] = "pages_extract_wait_pages"
     await callback.message.answer(
-        f"Страниц в файле: {num_pages}.\n\n"
-        "Какие страницы извлечь?\n\n"
-        "Примеры:\n"
-        "• 2\n"
-        "• 1-3\n"
-        "• 1,3,5-7\n"
-        "• all"
+        t(user_id, "pages_extract_ask_pages", num_pages=num_pages)
     )
     await callback.answer()
 
@@ -115,8 +99,7 @@ async def pages_cancel_action(callback: types.CallbackQuery):
     user_modes[user_id] = "compress"
 
     await callback.message.answer(
-        "Редактирование страниц завершено.\n"
-        "Можно выбрать другой режим или прислать PDF для сжатия."
+        t(user_id, "pages_edit_finished")
     )
     await callback.answer()
 
@@ -129,7 +112,7 @@ async def pages_rotate_angle_callback(callback: types.CallbackQuery):
     try:
         angle = int(data)
     except ValueError:
-        await callback.answer("Некорректный угол.", show_alert=True)
+        await callback.answer(t(user_id, "pages_bad_angle"), show_alert=True)
         return
 
     state = user_pages_state.get(user_id) or {}
@@ -137,11 +120,11 @@ async def pages_rotate_angle_callback(callback: types.CallbackQuery):
     num_pages = state.get("pages")
 
     if not is_pro(user_id):
-        await callback.answer("Только для PRO.", show_alert=True)
+        await callback.answer(t(user_id, "pages_pro_only"), show_alert=True)
         return
 
     if not pdf_path or not Path(pdf_path).exists() or not num_pages:
-        await callback.answer("Нет загруженного PDF.", show_alert=True)
+        await callback.answer(t(user_id, "pages_no_pdf_short"), show_alert=True)
         user_modes[user_id] = "compress"
         return
 
@@ -151,7 +134,7 @@ async def pages_rotate_angle_callback(callback: types.CallbackQuery):
         reader = PdfReader(str(pdf_path))
     except Exception as e:
         logger.error(f"Pages rotate open error: {e}")
-        await callback.message.answer("Не удалось открыть PDF.")
+        await callback.message.answer(t(user_id, "pages_open_error"))
         await callback.answer()
         return
 
@@ -170,13 +153,13 @@ async def pages_rotate_angle_callback(callback: types.CallbackQuery):
             writer.write(f)
     except Exception as e:
         logger.error(f"Pages rotate write error: {e}")
-        await callback.message.answer("Ошибка при сохранении PDF.")
+        await callback.message.answer(t(user_id, "pages_save_error"))
         await callback.answer()
         return
 
     await callback.message.answer_document(
         types.FSInputFile(out_path),
-        caption=f"Готово: страницы повёрнуты на {angle}°."
+        caption=t(user_id, "pages_rotated_done", angle=angle),
     )
 
     # Обновляем состояние
@@ -187,8 +170,8 @@ async def pages_rotate_angle_callback(callback: types.CallbackQuery):
     user_modes[user_id] = "pages_menu"
 
     await callback.message.answer(
-        "Можно продолжить редактирование.\nВыбери действие:",
-        reply_markup=get_pages_menu_keyboard()
+        t(user_id, "pages_continue_choose_action"),
+        reply_markup=get_pages_menu_keyboard(user_id),
     )
     await callback.answer()
 
@@ -202,13 +185,14 @@ async def pages_back_to_menu_callback(callback: types.CallbackQuery):
 
     if not pdf_path or not Path(pdf_path).exists() or not num_pages:
         user_modes[user_id] = "compress"
-        await callback.message.answer("Нет активного документа. Выбери режим и пришли PDF.")
+        await callback.message.answer(
+            t(user_id, "pages_no_active_doc")
+        )
     else:
         user_modes[user_id] = "pages_menu"
         await callback.message.answer(
-            f"Редактор страниц PDF.\n"
-            f"Страниц: {num_pages}\n\nВыбери действие:",
-            reply_markup=get_pages_menu_keyboard()
+            t(user_id, "pages_menu_header", num_pages=num_pages),
+            reply_markup=get_pages_menu_keyboard(user_id),
         )
 
     await callback.answer()

@@ -4,8 +4,10 @@ from settings import FILES_DIR
 from pdf_services import image_file_to_pdf
 from utils import check_size_or_reject
 from state import user_modes
+from i18n import t
 
 router = Router()
+
 
 @router.message(F.photo)
 async def handle_photo(message: types.Message, bot: Bot):
@@ -18,7 +20,7 @@ async def handle_photo(message: types.Message, bot: Bot):
     if not await check_size_or_reject(message, photo.file_size):
         return
 
-    await message.answer("Конвертирую фото в PDF...")
+    await message.answer(t(user_id, "msg_converting_image"))
 
     file = await bot.get_file(photo.file_id)
 
@@ -28,10 +30,10 @@ async def handle_photo(message: types.Message, bot: Bot):
 
     pdf_path = image_file_to_pdf(src_path)
     if not pdf_path:
-        await message.answer("Не удалось конвертировать изображение.")
+        await message.answer(t(user_id, "err_image_convert"))
         return
 
     await message.answer_document(
         types.FSInputFile(pdf_path),
-        caption="Готово."
+        caption=t(user_id, "msg_done"),
     )

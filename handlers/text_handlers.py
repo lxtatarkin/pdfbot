@@ -16,8 +16,10 @@ from keyboards import (
     get_watermark_keyboard,
 )
 from pdf_services import parse_page_range
+from i18n import t  # ЛОКАЛИЗАЦИЯ
 
 router = Router()
+
 
 @router.message(F.text)
 async def handle_text(message: types.Message):
@@ -33,7 +35,7 @@ async def handle_text(message: types.Message):
         num_pages = state.get("pages")
 
         if not pdf_path or not Path(pdf_path).exists() or not num_pages:
-            await message.answer("Нет загруженного PDF. Сначала выбери 🧩 Редактор страниц и пришли файл.")
+            await message.answer(t(user_id, "pages_no_pdf_editor"))
             user_modes[user_id] = "compress"
             return
 
@@ -43,10 +45,7 @@ async def handle_text(message: types.Message):
             pages = parse_page_range(text_raw, num_pages)
 
         if not pages:
-            await message.answer(
-                "Не удалось распознать страницы.\n"
-                "Примеры: 2, 1-3, 1,3,5-7 или all."
-            )
+            await message.answer(t(user_id, "pages_rotate_range_failed"))
             return
 
         state["rotate_pages"] = pages
@@ -54,15 +53,14 @@ async def handle_text(message: types.Message):
         user_modes[user_id] = "pages_rotate_wait_angle"
 
         await message.answer(
-            f"Страницы для поворота: {text_raw}.\n"
-            "Теперь выбери угол поворота:",
-            reply_markup=get_rotate_keyboard()
+            t(user_id, "pages_rotate_confirm", raw=text_raw),
+            reply_markup=get_rotate_keyboard(user_id),
         )
         return
 
     # ===== РЕДАКТОР СТРАНИЦ: ожидание угла (просим пользоваться кнопками) =====
     if mode == "pages_rotate_wait_angle":
-        await message.answer("Выбери угол поворота с помощью кнопок под предыдущим сообщением.")
+        await message.answer(t(user_id, "pages_angle_reminder"))
         return
 
     # ===== РЕДАКТОР СТРАНИЦ: ввод диапазона для УДАЛЕНИЯ =====
@@ -72,16 +70,13 @@ async def handle_text(message: types.Message):
         num_pages = state.get("pages")
 
         if not pdf_path or not Path(pdf_path).exists() or not num_pages:
-            await message.answer("Нет загруженного PDF. Сначала выбери 🧩 Редактор страниц и пришли файл.")
+            await message.answer(t(user_id, "pages_no_pdf_editor"))
             user_modes[user_id] = "compress"
             return
 
         pages = parse_page_range(text_raw, num_pages)
         if not pages:
-            await message.answer(
-                "Не удалось распознать страницы для удаления.\n"
-                "Примеры: 2, 1-3, 1,3,5-7."
-            )
+            await message.answer(t(user_id, "pages_delete_range_failed"))
             return
 
         delete_set = set(pages)
@@ -90,7 +85,7 @@ async def handle_text(message: types.Message):
             reader = PdfReader(str(pdf_path))
         except Exception as e:
             logger.error(f"Pages delete open error: {e}")
-            await message.answer("Не удалось открыть PDF.")
+            await message.answer(t(user_id, "pages_open_error"))
             return
 
         writer = PdfWriter()
@@ -102,7 +97,7 @@ async def handle_text(message: types.Message):
             kept += 1
 
         if kept == 0:
-            await message.answer("После удаления не осталось ни одной страницы. Операция отменена.")
+            await message.answer(t(user_id, "pages_delete_all_removed"))
             user_modes[user_id] = "pages_menu"
             return
 
@@ -112,12 +107,12 @@ async def handle_text(message: types.Message):
                 writer.write(f)
         except Exception as e:
             logger.error(f"Pages delete write error: {e}")
-            await message.answer("Ошибка при сохранении PDF после удаления страниц.")
+            await message.answer(t(user_id, "pages_save_error"))
             return
 
         await message.answer_document(
             types.FSInputFile(out_path),
-            caption=f"Готово: удалены страницы {text_raw}. Осталось страниц: {kept}."
+            caption=t(user_id, "pages_delete_done", raw=text_raw, kept=kept),
         )
 
         user_pages_state[user_id] = {
@@ -127,12 +122,8 @@ async def handle_text(message: types.Message):
         user_modes[user_id] = "pages_menu"
 
         await message.answer(
-            "Можно продолжить редактирование страниц:\n"
-            "— Поворот\n"
-            "— Удаление\n"
-            "— Извлечение\n\n"
-            "Выбери действие:",
-            reply_markup=get_pages_menu_keyboard()
+            t(user_id, "pages_continue_editing_full"),
+            reply_markup=get_pages_menu_keyboard(user_id),
         )
         return
 
@@ -143,7 +134,7 @@ async def handle_text(message: types.Message):
         num_pages = state.get("pages")
 
         if not pdf_path or not Path(pdf_path).exists() or not num_pages:
-            await message.answer("Нет загруженного PDF. Сначала выбери 🧩 Редактор страниц и пришли файл.")
+            await message.answer(t(user_id, "pages_no_pdf_editor"))
             user_modes[user_id] = "compress"
             return
 
@@ -153,17 +144,14 @@ async def handle_text(message: types.Message):
             pages = parse_page_range(text_raw, num_pages)
 
         if not pages:
-            await message.answer(
-                "Не удалось распознать страницы для извлечения.\n"
-                "Примеры: 2, 1-3, 1,3,5-7 или all."
-            )
+            await message.answer(t(user_id, "pages_extract_range_failed"))
             return
 
         try:
             reader = PdfReader(str(pdf_path))
         except Exception as e:
             logger.error(f"Pages extract open error: {e}")
-            await message.answer("Не удалось открыть PDF.")
+            await message.answer(t(user_id, "pages_open_error"))
             return
 
         writer = PdfWriter()
@@ -177,19 +165,18 @@ async def handle_text(message: types.Message):
                 writer.write(f)
         except Exception as e:
             logger.error(f"Pages extract write error: {e}")
-            await message.answer("Ошибка при сохранении извлечённых страниц.")
+            await message.answer(t(user_id, "pages_save_error"))
             return
 
         await message.answer_document(
             types.FSInputFile(out_path),
-            caption=f"Готово: извлечены страницы {text_raw} в отдельный PDF."
+            caption=t(user_id, "pages_extract_done", raw=text_raw),
         )
 
         user_modes[user_id] = "pages_menu"
         await message.answer(
-            "Можно продолжить редактирование исходного файла.\n"
-            "Выбери действие:",
-            reply_markup=get_pages_menu_keyboard()
+            t(user_id, "pages_continue_source_edit"),
+            reply_markup=get_pages_menu_keyboard(user_id),
         )
         return
 
@@ -199,14 +186,14 @@ async def handle_text(message: types.Message):
         pdf_path = state.get("pdf_path")
 
         if not pdf_path or not Path(pdf_path).exists():
-            await message.answer("Не нашёл PDF для водяного знака. Начни заново и пришли PDF.")
+            await message.answer(t(user_id, "wm_no_pdf"))
             user_modes[user_id] = "watermark"
             user_watermark_state[user_id] = {}
             return
 
         wm_text = (message.text or "").strip()
         if not wm_text:
-            await message.answer("Текст пустой. Отправь текст водяного знака ещё раз.")
+            await message.answer(t(user_id, "wm_empty_text"))
             return
 
         state["text"] = wm_text
@@ -216,25 +203,27 @@ async def handle_text(message: types.Message):
         user_modes[user_id] = "watermark_wait_style"
 
         await message.answer(
-            "Выбери позицию водяного знака (сетку 3×3) и при необходимости включи Mosaic.",
-            reply_markup=get_watermark_keyboard(pos="11", mosaic=False)
+            t(user_id, "wm_choose_pos_full"),
+            reply_markup=get_watermark_keyboard(user_id, pos="11", mosaic=False),
         )
         return
 
     # ===== ВОДЯНОЙ ЗНАК: напоминание =====
     if mode == "watermark_wait_style":
-        await message.answer("Используй кнопки под прошлым сообщением для выбора позиции и Mosaic.")
+        await message.answer(t(user_id, "wm_style_reminder"))
         return
 
-    # ===== MERGE: "Готово" =====
-    if mode == "merge" and text_val in ("готово", "/done", "/merge"):
+    # ===== MERGE: "Готово" / "done" =====
+    if mode == "merge" and text_val in ("готово", "done", "/done", "/merge"):
         files_list = user_merge_files.get(user_id, [])
 
         if len(files_list) < 2:
-            await message.answer("Добавьте минимум 2 PDF.")
+            await message.answer(t(user_id, "merge_need_two"))
             return
 
-        await message.answer(f"Объединяю {len(files_list)} PDF...")
+        await message.answer(
+            t(user_id, "merge_start", count=len(files_list))
+        )
 
         merged_name = Path(files_list[0]).stem + "_merged.pdf"
         merged_path = FILES_DIR / merged_name
@@ -247,10 +236,13 @@ async def handle_text(message: types.Message):
             merger.close()
         except Exception as e:
             logger.error(e)
-            await message.answer("Ошибка при объединении.")
+            await message.answer(t(user_id, "merge_error"))
             return
 
-        await message.answer_document(types.FSInputFile(merged_path), caption="Готово!")
+        await message.answer_document(
+            types.FSInputFile(merged_path),
+            caption=t(user_id, "msg_done"),
+        )
         user_merge_files[user_id] = []
         return
 

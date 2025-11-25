@@ -45,6 +45,7 @@ def get_user_lang(user_id: int) -> str:
 
 TEXTS: Dict[str, Dict[str, str]] = {
     "ru": {
+        # /start
         "start_main": (
             "👋 Привет! Я конвертирую и обрабатываю файлы в PDF.\n\n"
             "Выбери режим на клавиатуре и пришли файл:\n\n"
@@ -63,6 +64,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
             "Лимит: <b>{limit_mb}</b>\n\n"
             "Подключить PRO-версию: /pro"
         ),
+        # /pro, когда уже есть PRO
         "pro_already": (
             "✅ У вас уже PRO-доступ.\n"
             "Текущий лимит: {max_size}.\n\n"
@@ -73,6 +75,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
             "• Водяные знаки для PDF\n"
             "• Файлы до 100 МБ"
         ),
+        # /pro, когда PRO нет
         "pro_info": (
             "💼 <b>PRO-доступ</b>\n\n"
             "Что даёт сейчас:\n"
@@ -84,6 +87,249 @@ TEXTS: Dict[str, Dict[str, str]] = {
             "• Приоритет в очереди (планируется)\n\n"
             "Чтобы подключить PRO — напишите владельцу бота."
         ),
+
+        # ===== КНОПКИ ОСНОВНОГО МЕНЮ =====
+        "btn_main_compress": "📉 Сжать PDF",
+        "btn_main_merge": "📎 Объединить PDF",
+        "btn_main_split": "✂️ Разделить PDF",
+        "btn_main_pdf_to_text": "📝 PDF → текст",
+        "btn_main_doc_to_pdf": "📄 Документ/фото → PDF",
+        "btn_main_ocr": "🔍 OCR",
+        "btn_main_searchable": "📑 Searchable PDF",
+        "btn_main_pages": "🧩 Редактор страниц",
+        "btn_main_watermark": "🛡 Водяной знак",
+
+        # ===== МЕНЮ РЕДАКТОРА СТРАНИЦ =====
+        "pages_rotate": "🔄 Поворот страниц",
+        "pages_delete": "🗑 Удалить страницы",
+        "pages_extract": "📤 Извлечь страницы",
+        "pages_cancel": "❌ Отмена",
+        "pages_back": "↩️ Назад к меню",
+
+        # ===== ВОДЯНОЙ ЗНАК =====
+        "wm_mosaic": "Мозаика",
+        "wm_ok": "OK",
+
+        # ===== DOC/IMAGE HANDLER =====
+        "err_file_too_big": (
+            "Файл слишком большой для тарифа ({tier}).\n"
+            "Лимит: {limit}.\n\n"
+            "Для больших файлов нужен PRO.\n"
+            "Смотрите /pro."
+        ),
+        "msg_converting_image": "Конвертирую изображение в PDF...",
+        "msg_converting_doc": "Конвертирую документ в PDF...",
+        "msg_done": "Готово.",
+        "err_image_convert": "Не удалось конвертировать изображение.",
+        "err_doc_convert": "Ошибка при конвертации документа в PDF.",
+        "err_unsupported": (
+            "Этот тип файла пока не поддерживается.\n"
+            "Поддерживаются: DOC, DOCX, XLS, XLSX, PPT, PPTX и изображения."
+        ),
+
+        # ===== MERGE (объединение) =====
+        "merge_need_two": "Добавьте минимум 2 PDF.",
+        "merge_start": "Объединяю {count} PDF...",
+        "merge_error": "Ошибка при объединении.",
+
+        # ===== РЕЖИМЫ =====
+        "mode_compress": "Режим: сжатие PDF. Пришли PDF.",
+        "mode_pdf_text": "Режим: PDF → текст. Пришли PDF.",
+        "mode_doc_photo": "Режим: DOC/IMG → PDF. Пришли документ или файл-изображение.",
+        "mode_merge": (
+            "Режим: объединение.\n"
+            "Пришли 2–10 PDF-файлов.\n"
+            "Потом напиши «Готово»."
+        ),
+        "mode_split": "Режим: разделение PDF.\nПришли один PDF.",
+        "mode_ocr_free": (
+            "Режим: 🔍 OCR (распознавание текста в сканах и фото).\n"
+            "Эта функция доступна только для PRO-пользователей.\n\n"
+            "Подробнее: /pro"
+        ),
+        "mode_ocr_pro": (
+            "Режим: 🔍 OCR.\n"
+            "Пришли PDF-скан или изображение (фото/картинка). "
+            "Я верну TXT-файл с распознанным текстом."
+        ),
+        "mode_searchable_free": (
+            "Режим: 📑 Searchable PDF.\n"
+            "Делаю из скана PDF с выделяемым текстом.\n"
+            "Функция доступна только для PRO-пользователей.\n\n"
+            "Подробнее: /pro"
+        ),
+        "mode_searchable_pro": (
+            "Режим: 📑 Searchable PDF.\n"
+            "Пришли сканированный PDF. Я верну PDF, "
+            "в котором текст можно выделять и искать."
+        ),
+        "mode_pages_free": (
+            "Режим: 🧩 Редактор страниц PDF.\n"
+            "Доступно только для PRO-пользователей.\n\n"
+            "В этом режиме можно поворачивать, удалять и извлекать страницы.\n"
+            "Подробнее: /pro"
+        ),
+        "mode_pages_pro": (
+            "Режим: 🧩 Редактор страниц PDF.\n"
+            "Пришли PDF, страницы которого нужно отредактировать."
+        ),
+        "mode_watermark_free": (
+            "Режим: 🛡 водяной знак для PDF.\n"
+            "Функция доступна только для PRO-пользователей.\n\n"
+            "Подробнее: /pro"
+        ),
+        "mode_watermark_pro": (
+            "Режим: 🛡 Водяной знак.\n"
+            "1) Пришли PDF-файл.\n"
+            "2) Потом введи текст водяного знака.\n"
+            "3) Выбери позицию на сетке и при желании включи Mosaic."
+        ),
+
+        # ===== РЕДАКТОР СТРАНИЦ =====
+        "pages_pro_only": "Только для PRO.",
+        "pages_no_pdf_editor": "Нет загруженного PDF. Сначала пришли файл в режиме редактора.",
+        "pages_no_pdf": "Нет загруженного PDF. Сначала пришли файл.",
+        "pages_one_page_choose_angle": "В файле 1 страница.\nВыбери угол поворота:",
+        "pages_rotate_ask_pages": (
+            "Страниц в файле: {num_pages}.\n\n"
+            "Какие страницы нужно повернуть?\n\n"
+            "Примеры:\n"
+            "• 2\n"
+            "• 1-3\n"
+            "• 1,3,5-7\n"
+            "• all"
+        ),
+        "pages_delete_ask_pages": (
+            "Страниц в файле: {num_pages}.\n\n"
+            "Какие страницы удалить?\n\n"
+            "Примеры:\n"
+            "• 2\n"
+            "• 1-3\n"
+            "• 1,3,5-7"
+        ),
+        "pages_extract_ask_pages": (
+            "Страниц в файле: {num_pages}.\n\n"
+            "Какие страницы извлечь?\n\n"
+            "Примеры:\n"
+            "• 2\n"
+            "• 1-3\n"
+            "• 1,3,5-7\n"
+            "• all"
+        ),
+        "pages_edit_finished": (
+            "Редактирование страниц завершено.\n"
+            "Можно выбрать другой режим или прислать PDF для сжатия."
+        ),
+        "pages_bad_angle": "Некорректный угол.",
+        "pages_no_pdf_short": "Нет загруженного PDF.",
+        "pages_open_error": "Не удалось открыть PDF.",
+        "pages_save_error": "Ошибка при сохранении PDF.",
+        "pages_rotated_done": "Готово: страницы повёрнуты на {angle}°.",
+        "pages_continue_choose_action": "Можно продолжить редактирование.\nВыбери действие:",
+        "pages_no_active_doc": "Нет активного документа. Выбери режим и пришли PDF.",
+        "pages_menu_header": (
+            "Редактор страниц PDF.\n"
+            "Страниц: {num_pages}\n\n"
+            "Выбери действие:"
+        ),
+
+        # ===== EDITOR ENTRY FROM PDF HANDLER =====
+        "pages_pro_only_full": "Редактор страниц доступен только для PRO-пользователей. См. /pro",
+        "pages_intro_with_file": (
+            "Редактор страниц PDF.\n"
+            "Файл: {file_name}\n"
+            "Страниц в документе: {num_pages}\n\n"
+            "Выбери действие:"
+        ),
+
+        # ===== OCR =====
+        "ocr_pro_only": "OCR доступен только для PRO-пользователей. См. /pro",
+        "msg_ocr_processing": "Распознаю текст в PDF (OCR)...",
+        "err_ocr_failed": "Не удалось распознать текст (возможно очень плохое качество скана).",
+        "msg_ocr_done": "Готово: OCR-текст из PDF.",
+
+        # ===== SEARCHABLE PDF =====
+        "searchable_pro_only": "Searchable PDF доступен только для PRO-пользователей. См. /pro",
+        "msg_searchable_processing": "Создаю searchable PDF (можно выделять текст)...",
+        "err_searchable_failed": "Ошибка при создании searchable PDF.",
+        "msg_searchable_done": "Готово: searchable PDF. Теперь текст можно выделять и искать.",
+
+        # ===== WATERMARK ENTRY =====
+        "wm_pro_only": "Водяные знаки доступны только для PRO-пользователей. См. /pro",
+        "wm_pdf_received": (
+            "PDF получил.\n"
+            "Теперь отправь текст водяного знака.\n"
+            "Например: CONFIDENTIAL, DRAFT, КОПИЯ."
+        ),
+
+        # ===== MERGE FROM PDF HANDLER =====
+        "merge_too_many": "Можно объединить не больше 10 файлов за раз.",
+        "merge_file_added": (
+            "Добавил файл #{count} для объединения.\n"
+            "Пришли ещё PDF или напиши «Готово», чтобы объединить."
+        ),
+
+        # ===== PDF → TEXT =====
+        "msg_extracting_text": "Извлекаю текст...",
+        "err_no_text_found": "Текста не найдено (возможно скан или ошибка чтения).",
+
+        # ===== SPLIT =====
+        "msg_splitting_pdf": "Разделяю PDF...",
+        "err_open_pdf": "Не удалось открыть PDF.",
+        "err_only_one_page": "Там всего 1 страница.",
+        "split_page_caption": "Страница {i}/{n}",
+        "split_zip_done": "Готово: {n} страниц в ZIP.",
+
+        # ===== COMPRESS =====
+        "msg_compressing_pdf": "Сжимаю PDF...",
+        "err_compress_failed": "Не удалось сжать PDF (ошибка Ghostscript).",
+
+        # ===== РЕДАКТОР СТРАНИЦ — TEXT HANDLER =====
+        "pages_rotate_range_failed": (
+            "Не удалось распознать страницы.\n"
+            "Примеры: 2, 1-3, 1,3,5-7 или all."
+        ),
+        "pages_rotate_confirm": (
+            "Страницы для поворота: {raw}.\n"
+            "Теперь выбери угол поворота:"
+        ),
+        "pages_angle_reminder": "Выбери угол поворота с помощью кнопок под предыдущим сообщением.",
+        "pages_delete_range_failed": (
+            "Не удалось распознать страницы для удаления.\n"
+            "Примеры: 2, 1-3, 1,3,5-7."
+        ),
+        "pages_delete_all_removed": "После удаления не осталось ни одной страницы. Операция отменена.",
+        "pages_delete_done": "Готово: удалены страницы {raw}. Осталось страниц: {kept}.",
+        "pages_continue_editing_full": (
+            "Можно продолжить редактирование страниц:\n"
+            "— Поворот\n"
+            "— Удаление\n"
+            "— Извлечение\n\n"
+            "Выбери действие:"
+        ),
+        "pages_extract_range_failed": (
+            "Не удалось распознать страницы для извлечения.\n"
+            "Примеры: 2, 1-3, 1,3,5-7 или all."
+        ),
+        "pages_extract_done": "Готово: извлечены страницы {raw} в отдельный PDF.",
+        "pages_continue_source_edit": (
+            "Можно продолжить редактирование исходного файла.\n"
+            "Выбери действие:"
+        ),
+
+        # ===== ВОДЯНОЙ ЗНАК — TEXT HANDLER =====
+        "wm_no_pdf": "Не нашёл PDF для водяного знака. Начни заново и пришли PDF.",
+        "wm_empty_text": "Текст пустой. Отправь текст водяного знака ещё раз.",
+        "wm_choose_pos_full": (
+            "Выбери позицию водяного знака (сетку 3×3) и при необходимости включи Mosaic."
+        ),
+        "wm_style_reminder": "Используй кнопки под прошлым сообщением для выбора позиции и Mosaic.",
+
+        # ===== ВОДЯНОЙ ЗНАК — CALLBACK HANDLER =====
+        "wm_no_data": "Нет данных для водяного знака, начни заново.",
+        "wm_applying": "Добавляю водяной знак в PDF...",
+        "wm_save_failed": "Не получилось сохранить PDF с водяным знаком.",
+        "wm_done": "Готово: PDF с водяным знаком.",
     },
 
     "en": {
@@ -126,6 +372,249 @@ TEXTS: Dict[str, Dict[str, str]] = {
             "• Priority in queue (planned)\n\n"
             "To get PRO — contact the bot owner."
         ),
+
+        # ===== MAIN MENU BUTTONS =====
+        "btn_main_compress": "📉 Compress PDF",
+        "btn_main_merge": "📎 Merge PDF",
+        "btn_main_split": "✂️ Split PDF",
+        "btn_main_pdf_to_text": "📝 PDF → text",
+        "btn_main_doc_to_pdf": "📄 Document/Photo → PDF",
+        "btn_main_ocr": "🔍 OCR",
+        "btn_main_searchable": "📑 Searchable PDF",
+        "btn_main_pages": "🧩 Page editor",
+        "btn_main_watermark": "🛡 Watermark",
+
+        # ===== PAGES EDITOR MENU =====
+        "pages_rotate": "🔄 Rotate pages",
+        "pages_delete": "🗑 Delete pages",
+        "pages_extract": "📤 Extract pages",
+        "pages_cancel": "❌ Cancel",
+        "pages_back": "↩️ Back to menu",
+
+        # ===== WATERMARK =====
+        "wm_mosaic": "Mosaic",
+        "wm_ok": "OK",
+
+        # ===== DOC/IMAGE HANDLER =====
+        "err_file_too_big": (
+            "The file is too large for your plan ({tier}).\n"
+            "Limit: {limit}.\n\n"
+            "Large files require PRO.\n"
+            "See /pro."
+        ),
+        "msg_converting_image": "Converting image to PDF...",
+        "msg_converting_doc": "Converting document to PDF...",
+        "msg_done": "Done.",
+        "err_image_convert": "Failed to convert image.",
+        "err_doc_convert": "Error converting document to PDF.",
+        "err_unsupported": (
+            "This file type is not supported.\n"
+            "Supported: DOC, DOCX, XLS, XLSX, PPT, PPTX, and images."
+        ),
+
+        # ===== MERGE (combine PDFs) =====
+        "merge_need_two": "Add at least 2 PDF files.",
+        "merge_start": "Merging {count} PDFs...",
+        "merge_error": "Error while merging PDFs.",
+
+        # ===== MODES =====
+        "mode_compress": "Mode: compress PDF. Send a PDF file.",
+        "mode_pdf_text": "Mode: PDF → text. Send a PDF file.",
+        "mode_doc_photo": "Mode: DOC/IMG → PDF. Send a document or image file.",
+        "mode_merge": (
+            "Mode: merge PDFs.\n"
+            "Send 2–10 PDF files.\n"
+            "Then type “done”."
+        ),
+        "mode_split": "Mode: split PDF.\nSend one PDF file.",
+        "mode_ocr_free": (
+            "Mode: 🔍 OCR (text recognition in scans/photos).\n"
+            "This feature is available only for PRO users.\n\n"
+            "More: /pro"
+        ),
+        "mode_ocr_pro": (
+            "Mode: 🔍 OCR.\n"
+            "Send a scanned PDF or image (photo/picture). "
+            "I will return a TXT file with recognized text."
+        ),
+        "mode_searchable_free": (
+            "Mode: 📑 Searchable PDF.\n"
+            "I make a PDF with selectable text from a scan.\n"
+            "This feature is available only for PRO users.\n\n"
+            "More: /pro"
+        ),
+        "mode_searchable_pro": (
+            "Mode: 📑 Searchable PDF.\n"
+            "Send a scanned PDF. I will return a PDF "
+            "where text can be selected and searched."
+        ),
+        "mode_pages_free": (
+            "Mode: 🧩 PDF page editor.\n"
+            "Available only for PRO users.\n\n"
+            "In this mode you can rotate, delete and extract pages.\n"
+            "More: /pro"
+        ),
+        "mode_pages_pro": (
+            "Mode: 🧩 PDF page editor.\n"
+            "Send the PDF whose pages you want to edit."
+        ),
+        "mode_watermark_free": (
+            "Mode: 🛡 PDF watermark.\n"
+            "This feature is available only for PRO users.\n\n"
+            "More: /pro"
+        ),
+        "mode_watermark_pro": (
+            "Mode: 🛡 Watermark.\n"
+            "1) Send a PDF file.\n"
+            "2) Then enter the watermark text.\n"
+            "3) Choose a position on the grid and optionally enable Mosaic."
+        ),
+
+        # ===== PAGES EDITOR =====
+        "pages_pro_only": "PRO only.",
+        "pages_no_pdf_editor": "No PDF is loaded. First send a file in editor mode.",
+        "pages_no_pdf": "No PDF is loaded. First send a file.",
+        "pages_one_page_choose_angle": "The file has 1 page.\nChoose a rotation angle:",
+        "pages_rotate_ask_pages": (
+            "Pages in file: {num_pages}.\n\n"
+            "Which pages should be rotated?\n\n"
+            "Examples:\n"
+            "• 2\n"
+            "• 1-3\n"
+            "• 1,3,5-7\n"
+            "• all"
+        ),
+        "pages_delete_ask_pages": (
+            "Pages in file: {num_pages}.\n\n"
+            "Which pages should be deleted?\n\n"
+            "Examples:\n"
+            "• 2\n"
+            "• 1-3\n"
+            "• 1,3,5-7"
+        ),
+        "pages_extract_ask_pages": (
+            "Pages in file: {num_pages}.\n\n"
+            "Which pages should be extracted?\n\n"
+            "Examples:\n"
+            "• 2\n"
+            "• 1-3\n"
+            "• 1,3,5-7\n"
+            "• all"
+        ),
+        "pages_edit_finished": (
+            "Page editing finished.\n"
+            "You can choose another mode or send a PDF to compress."
+        ),
+        "pages_bad_angle": "Invalid angle.",
+        "pages_no_pdf_short": "No PDF is loaded.",
+        "pages_open_error": "Failed to open PDF.",
+        "pages_save_error": "Error saving PDF.",
+        "pages_rotated_done": "Done: pages rotated by {angle}°.",
+        "pages_continue_choose_action": "You can continue editing.\nChoose an action:",
+        "pages_no_active_doc": "No active document. Choose a mode and send a PDF.",
+        "pages_menu_header": (
+            "PDF page editor.\n"
+            "Pages: {num_pages}\n\n"
+            "Choose an action:"
+        ),
+
+        # ===== EDITOR ENTRY FROM PDF HANDLER =====
+        "pages_pro_only_full": "Page editor is available only for PRO users. See /pro",
+        "pages_intro_with_file": (
+            "PDF page editor.\n"
+            "File: {file_name}\n"
+            "Pages in document: {num_pages}\n\n"
+            "Choose an action:"
+        ),
+
+        # ===== OCR =====
+        "ocr_pro_only": "OCR is available only for PRO users. See /pro",
+        "msg_ocr_processing": "Running OCR on PDF...",
+        "err_ocr_failed": "Failed to recognize text (scan quality might be too low).",
+        "msg_ocr_done": "Done: OCR text from PDF.",
+
+        # ===== SEARCHABLE PDF =====
+        "searchable_pro_only": "Searchable PDF is available only for PRO users. See /pro",
+        "msg_searchable_processing": "Creating searchable PDF (selectable text)...",
+        "err_searchable_failed": "Error while creating searchable PDF.",
+        "msg_searchable_done": "Done: searchable PDF. Now text can be selected and searched.",
+
+        # ===== WATERMARK ENTRY =====
+        "wm_pro_only": "Watermarks are available only for PRO users. See /pro",
+        "wm_pdf_received": (
+            "PDF received.\n"
+            "Now send the watermark text.\n"
+            "For example: CONFIDENTIAL, DRAFT, COPY."
+        ),
+
+        # ===== MERGE FROM PDF HANDLER =====
+        "merge_too_many": "You can merge up to 10 files at a time.",
+        "merge_file_added": (
+            "File #{count} added for merging.\n"
+            "Send more PDFs or type “done” to merge."
+        ),
+
+        # ===== PDF → TEXT =====
+        "msg_extracting_text": "Extracting text...",
+        "err_no_text_found": "No text found (maybe a scan or read error).",
+
+        # ===== SPLIT =====
+        "msg_splitting_pdf": "Splitting PDF...",
+        "err_open_pdf": "Failed to open PDF.",
+        "err_only_one_page": "There is only 1 page.",
+        "split_page_caption": "Page {i}/{n}",
+        "split_zip_done": "Done: {n} pages in ZIP.",
+
+        # ===== COMPRESS =====
+        "msg_compressing_pdf": "Compressing PDF...",
+        "err_compress_failed": "Failed to compress PDF (Ghostscript error).",
+
+        # ===== PAGES EDITOR — TEXT HANDLER =====
+        "pages_rotate_range_failed": (
+            "Could not parse pages.\n"
+            "Examples: 2, 1-3, 1,3,5-7 or all."
+        ),
+        "pages_rotate_confirm": (
+            "Pages to rotate: {raw}.\n"
+            "Now choose a rotation angle:"
+        ),
+        "pages_angle_reminder": "Choose a rotation angle using the buttons under the previous message.",
+        "pages_delete_range_failed": (
+            "Could not parse pages to delete.\n"
+            "Examples: 2, 1-3, 1,3,5-7."
+        ),
+        "pages_delete_all_removed": "After deleting, no pages are left. Operation cancelled.",
+        "pages_delete_done": "Done: pages {raw} deleted. Pages left: {kept}.",
+        "pages_continue_editing_full": (
+            "You can continue editing pages:\n"
+            "— Rotate\n"
+            "— Delete\n"
+            "— Extract\n\n"
+            "Choose an action:"
+        ),
+        "pages_extract_range_failed": (
+            "Could not parse pages to extract.\n"
+            "Examples: 2, 1-3, 1,3,5-7 or all."
+        ),
+        "pages_extract_done": "Done: pages {raw} extracted to a separate PDF.",
+        "pages_continue_source_edit": (
+            "You can continue editing the original file.\n"
+            "Choose an action:"
+        ),
+
+        # ===== WATERMARK — TEXT HANDLER =====
+        "wm_no_pdf": "Could not find a PDF for watermark. Start again and send a PDF.",
+        "wm_empty_text": "Text is empty. Send the watermark text again.",
+        "wm_choose_pos_full": (
+            "Choose the watermark position (3×3 grid) and enable Mosaic if needed."
+        ),
+        "wm_style_reminder": "Use the buttons under the previous message to choose position and Mosaic.",
+
+        # ===== WATERMARK — CALLBACK HANDLER =====
+        "wm_no_data": "No data for watermark, please start again.",
+        "wm_applying": "Applying watermark to PDF...",
+        "wm_save_failed": "Failed to save PDF with watermark.",
+        "wm_done": "Done: PDF with watermark.",
     },
 }
 

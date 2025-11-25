@@ -7,6 +7,7 @@ from settings import logger
 from state import user_modes, user_watermark_state
 from keyboards import get_watermark_keyboard
 from pdf_services import apply_watermark
+from i18n import t
 
 router = Router()
 
@@ -22,6 +23,7 @@ async def wm_pos_callback(callback: types.CallbackQuery):
     try:
         await callback.message.edit_reply_markup(
             reply_markup=get_watermark_keyboard(
+                user_id=user_id,
                 pos=pos_code,
                 mosaic=state.get("mosaic", False),
             )
@@ -41,6 +43,7 @@ async def wm_mosaic_callback(callback: types.CallbackQuery):
     try:
         await callback.message.edit_reply_markup(
             reply_markup=get_watermark_keyboard(
+                user_id=user_id,
                 pos=state.get("pos", "11"),
                 mosaic=state["mosaic"],
             )
@@ -61,26 +64,29 @@ async def wm_apply_callback(callback: types.CallbackQuery):
     mosaic = state.get("mosaic", False)
 
     if not pdf_path or not Path(pdf_path).exists() or not wm_text:
-        await callback.answer("Нет данных для водяного знака, начните заново.", show_alert=True)
+        await callback.answer(
+            t(user_id, "wm_no_data"),
+            show_alert=True,
+        )
         user_modes[user_id] = "watermark"
         user_watermark_state[user_id] = {}
         return
 
     await callback.answer()
     try:
-        await callback.message.edit_text("Добавляю водяной знак в PDF...")
+        await callback.message.edit_text(t(user_id, "wm_applying"))
     except Exception:
         pass
 
     out_path = apply_watermark(Path(pdf_path), wm_text, pos, mosaic)
 
     if not out_path or not out_path.exists():
-        await callback.message.answer("Не получилось сохранить PDF с водяным знаком.")
+        await callback.message.answer(t(user_id, "wm_save_failed"))
         return
 
     await callback.message.answer_document(
         types.FSInputFile(out_path),
-        caption="Готово: PDF с водяным знаком.",
+        caption=t(user_id, "wm_done"),
     )
 
     user_watermark_state[user_id] = {}

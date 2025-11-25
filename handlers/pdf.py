@@ -26,6 +26,7 @@ from pdf_services import (
     extract_text_from_pdf,
     compress_pdf,
 )
+from i18n import t
 
 router = Router()
 
@@ -38,10 +39,12 @@ async def check_size_or_reject(message: types.Message, size_bytes: int | None) -
 
     if size_bytes is not None and size_bytes > max_size:
         await message.answer(
-            f"Файл слишком большой для тарифа ({tier}).\n"
-            f"Лимит: {format_mb(max_size)}.\n\n"
-            "Для больших файлов нужен PRO.\n"
-            "Смотрите /pro."
+            t(
+                user_id,
+                "err_file_too_big",
+                tier=tier,
+                limit=format_mb(max_size),
+            )
         )
         logger.info(
             f"User {user_id} exceeded size limit: file={size_bytes}, limit={max_size}"
@@ -71,7 +74,7 @@ async def handle_pdf(message: types.Message, bot: Bot):
     # =============================
     if mode.startswith("pages"):
         if not is_pro(user_id):
-            await message.answer("Редактор страниц доступен только для PRO-пользователей. См. /pro")
+            await message.answer(t(user_id, "pages_pro_only_full"))
             return
 
         try:
@@ -79,7 +82,7 @@ async def handle_pdf(message: types.Message, bot: Bot):
             num_pages = len(reader.pages)
         except Exception as e:
             logger.error(f"Pages editor open error: {e}")
-            await message.answer("Не удалось открыть PDF.")
+            await message.answer(t(user_id, "err_open_pdf"))
             return
 
         user_pages_state[user_id] = {
@@ -89,11 +92,13 @@ async def handle_pdf(message: types.Message, bot: Bot):
         user_modes[user_id] = "pages_menu"
 
         await message.answer(
-            f"Редактор страниц PDF.\n"
-            f"Файл: {doc_msg.file_name}\n"
-            f"Страниц в документе: {num_pages}\n\n"
-            "Выбери действие:",
-            reply_markup=get_pages_menu_keyboard()
+            t(
+                user_id,
+                "pages_intro_with_file",
+                file_name=doc_msg.file_name,
+                num_pages=num_pages,
+            ),
+            reply_markup=get_pages_menu_keyboard(user_id),
         )
         return
 
@@ -102,19 +107,19 @@ async def handle_pdf(message: types.Message, bot: Bot):
     # =============================
     if mode == "ocr":
         if not is_pro(user_id):
-            await message.answer("OCR доступен только для PRO-пользователей. См. /pro")
+            await message.answer(t(user_id, "ocr_pro_only"))
             return
 
-        await message.answer("Распознаю текст в PDF (OCR)...")
+        await message.answer(t(user_id, "msg_ocr_processing"))
 
         txt_path = ocr_pdf_to_txt(src_path, user_id, lang="rus+eng")
         if not txt_path:
-            await message.answer("Не удалось распознать текст (возможно очень плохое качество скана).")
+            await message.answer(t(user_id, "err_ocr_failed"))
             return
 
         await message.answer_document(
             types.FSInputFile(txt_path),
-            caption="Готово: OCR-текст из PDF."
+            caption=t(user_id, "msg_ocr_done"),
         )
         logger.info(f"OCR PDF done for user {user_id}")
         return
@@ -124,19 +129,19 @@ async def handle_pdf(message: types.Message, bot: Bot):
     # =============================
     if mode == "searchable_pdf":
         if not is_pro(user_id):
-            await message.answer("Searchable PDF доступен только для PRO-пользователей. См. /pro")
+            await message.answer(t(user_id, "searchable_pro_only"))
             return
 
-        await message.answer("Создаю searchable PDF (можно выделять текст)...")
+        await message.answer(t(user_id, "msg_searchable_processing"))
 
         out_path = create_searchable_pdf(src_path, lang="rus+eng")
         if not out_path:
-            await message.answer("Ошибка при создании searchable PDF.")
+            await message.answer(t(user_id, "err_searchable_failed"))
             return
 
         await message.answer_document(
             types.FSInputFile(out_path),
-            caption="Готово: searchable PDF. Теперь текст можно выделять и искать."
+            caption=t(user_id, "msg_searchable_done"),
         )
         logger.info(f"Searchable PDF done for user {user_id}")
         return
@@ -146,17 +151,13 @@ async def handle_pdf(message: types.Message, bot: Bot):
     # =============================
     if mode == "watermark":
         if not is_pro(user_id):
-            await message.answer("Водяные знаки доступны только для PRO-пользователей. См. /pro")
+            await message.answer(t(user_id, "wm_pro_only"))
             return
 
         user_watermark_state[user_id] = {"pdf_path": src_path}
         user_modes[user_id] = "watermark_wait_text"
 
-        await message.answer(
-            "PDF получил.\n"
-            "Теперь отправь текст водяного знака.\n"
-            "Например: CONFIDENTIAL, DRAFT, КОПИЯ."
-        )
+        await message.answer(t(user_id, "wm_pdf_received"))
         return
 
     # =============================
@@ -165,13 +166,16 @@ async def handle_pdf(message: types.Message, bot: Bot):
     if mode == "merge":
         files_list = user_merge_files.setdefault(user_id, [])
         if len(files_list) >= 10:
-            await message.answer("Можно объединить не больше 10 файлов за раз.")
+            await message.answer(t(user_id, "merge_too_many"))
             return
 
         files_list.append(src_path)
         await message.answer(
-            f"Добавил файл #{len(files_list)} для объединения.\n"
-            "Пришли ещё PDF или напиши «Готово», чтобы объединить."
+            t(
+                user_id,
+                "merge_file_added",
+                count=len(files_list),
+            )
         )
         return
 
@@ -179,32 +183,35 @@ async def handle_pdf(message: types.Message, bot: Bot):
     # PDF → TEXT
     # =============================
     if mode == "pdf_text":
-        await message.answer("Извлекаю текст...")
+        await message.answer(t(user_id, "msg_extracting_text"))
 
         text_full = extract_text_from_pdf(src_path)
         if not text_full:
-            await message.answer("Текста не найдено (возможно скан или ошибка чтения).")
+            await message.answer(t(user_id, "err_no_text_found"))
             return
 
         txt_path = FILES_DIR / (Path(doc_msg.file_name).stem + ".txt")
         txt_path.write_text(text_full, encoding="utf-8")
 
-        await message.answer_document(types.FSInputFile(txt_path), caption="Готово.")
+        await message.answer_document(
+            types.FSInputFile(txt_path),
+            caption=t(user_id, "msg_done"),
+        )
         return
 
     # =============================
     # SPLIT PDF
     # =============================
     if mode == "split":
-        await message.answer("Разделяю PDF...")
+        await message.answer(t(user_id, "msg_splitting_pdf"))
 
         pages = split_pdf_to_pages(src_path)
         if pages is None:
-            await message.answer("Не удалось открыть PDF.")
+            await message.answer(t(user_id, "err_open_pdf"))
             return
 
         if len(pages) <= 1:
-            await message.answer("Там всего 1 страница.")
+            await message.answer(t(user_id, "err_only_one_page"))
             return
 
         n = len(pages)
@@ -213,7 +220,7 @@ async def handle_pdf(message: types.Message, bot: Bot):
             for i, p in enumerate(pages, start=1):
                 await message.answer_document(
                     types.FSInputFile(p),
-                    caption=f"Страница {i}/{n}"
+                    caption=t(user_id, "split_page_caption", i=i, n=n),
                 )
         else:
             zip_path = FILES_DIR / f"{src_path.stem}_pages.zip"
@@ -223,19 +230,22 @@ async def handle_pdf(message: types.Message, bot: Bot):
 
             await message.answer_document(
                 types.FSInputFile(zip_path),
-                caption=f"Готово: {n} страниц в ZIP."
+                caption=t(user_id, "split_zip_done", n=n),
             )
         return
 
     # =============================
     # COMPRESS PDF (DEFAULT)
     # =============================
-    await message.answer("Сжимаю PDF...")
+    await message.answer(t(user_id, "msg_compressing_pdf"))
     compressed_path = FILES_DIR / f"compressed_{doc_msg.file_name}"
 
     ok = compress_pdf(src_path, compressed_path)
     if not ok:
-        await message.answer("Не удалось сжать PDF (ошибка Ghostscript).")
+        await message.answer(t(user_id, "err_compress_failed"))
         return
 
-    await message.answer_document(types.FSInputFile(compressed_path), caption="Готово.")
+    await message.answer_document(
+        types.FSInputFile(compressed_path),
+        caption=t(user_id, "msg_done"),
+    )
