@@ -10,6 +10,7 @@ from .merge import router as merge_router
 from .pro import router as pro_router
 
 routers = [
+    pro_router,
     start_router,
     modes_router,
     pdf_router,
@@ -19,5 +20,4 @@ routers = [
     pages_router,
     watermark_router,
     merge_router,
-    pro_router,
 ]
