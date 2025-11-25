@@ -16,14 +16,18 @@ from state import (
     user_pages_state,
 )
 from keyboards import get_main_keyboard
+from i18n import set_user_lang 
 
 router = Router()
-
 
 @router.message(Command("start"))
 async def start_cmd(message: types.Message):
     user_id = message.from_user.id
     username = message.from_user.username
+
+    # НОВОЕ: язык телеграма → наш стор
+    tg_lang = message.from_user.language_code  # типа 'ru', 'ru-RU', 'en', 'en-US'
+    lang = set_user_lang(user_id, tg_lang)
 
     # сброс состояния пользователя
     user_modes[user_id] = "compress"
@@ -34,7 +38,11 @@ async def start_cmd(message: types.Message):
     tier = "PRO" if is_pro(user_id) else "FREE"
     limit_mb = format_mb(get_user_limit(user_id))
 
-    logger.info(f"/start from {user_id} ({username}), tier={tier}")
+    logger.info(
+        f"/start from {user_id} ({username}), tier={tier}, "
+        f"lang={lang}, tg_lang={tg_lang}"
+    )
+
     await message.answer(
         "👋 Привет! Я конвертирую и обрабатываю файлы в PDF.\n\n"
         "Выбери режим на клавиатуре и пришли файл:\n\n"
@@ -55,7 +63,6 @@ async def start_cmd(message: types.Message):
         reply_markup=get_main_keyboard(),
         parse_mode="HTML",
     )
-
 
 @router.message(Command("pro"))
 async def pro_cmd(message: types.Message):
