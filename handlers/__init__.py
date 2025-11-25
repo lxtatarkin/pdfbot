@@ -7,6 +7,7 @@ from .text_handlers import router as text_router
 from .pages import router as pages_router
 from .watermark import router as watermark_router
 from .merge import router as merge_router
+from .pro import router as pro_router
 
 routers = [
     start_router,
