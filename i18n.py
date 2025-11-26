@@ -350,9 +350,9 @@ TEXTS: Dict[str, Dict[str, str]] = {
             "Выберите подходящий план ниже:"
         ),
 
-        "pro_btn_month": "💳 Месяц — $2.99",
-        "pro_btn_quarter": "💳 3 месяца — $6.99 (−22%)",
-        "pro_btn_year": "💳 Год — $19.99 (−44%, лучший выбор)",
+        "pro_btn_month": "💳 $2.99 / месяц",
+        "pro_btn_quarter": "💳 $6.99 / 3 месяца",
+        "pro_btn_year": "💳 $19.99 / год",
         
     },
 
@@ -658,9 +658,9 @@ TEXTS: Dict[str, Dict[str, str]] = {
             "Choose a plan below:"
         ),
 
-        "pro_btn_month": "💳 Monthly — $2.99",
-        "pro_btn_quarter": "💳 3 months — $6.99 (−22%)",
-        "pro_btn_year": "💳 Year — $19.99 (−44%, best value)",
+        "pro_btn_month": "💳 $2.99 / month",
+        "pro_btn_quarter": "💳 $6.99 / 3 months",
+        "pro_btn_year": "💳 $19.99 / year",
     },
 }
 
