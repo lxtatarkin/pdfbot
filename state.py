@@ -1,4 +1,9 @@
 from pathlib import Path
+from typing import Dict, List
+
+import json
+import os
+import requests
 
 # mode:
 #   compress, pdf_text, doc_photo, merge, split, ocr, searchable_pdf,
@@ -6,53 +11,46 @@ from pathlib import Path
 #   pages_wait_pdf, pages_menu,
 #   pages_rotate_wait_pages, pages_rotate_wait_angle,
 #   pages_delete_wait_pages, pages_extract_wait_pages
-user_modes: dict[int, str] = {}
+user_modes: Dict[int, str] = {}
 
 # список PDF-файлов для объединения
-user_merge_files: dict[int, list[Path]] = {}
+user_merge_files: Dict[int, List[Path]] = {}
 
 # состояние для водяных знаков:
 # user_id -> {"pdf_path": Path, "text": str, "pos": "11", "mosaic": bool}
-user_watermark_state: dict[int, dict] = {}
+user_watermark_state: Dict[int, dict] = {}
 
 # состояние для редактора страниц:
 # user_id -> {"pdf_path": Path, "pages": int, ... }
-user_pages_state: dict[int, dict] = {}
+user_pages_state: Dict[int, dict] = {}
 
 # ==========================
-#   PRO USERS STORAGE
+#   PRO USERS (через billing)
 # ==========================
 
-import json
-
-PRO_USERS_FILE = Path("pro_users.json")
-
-
-def _load_pro_users() -> set[int]:
-    if PRO_USERS_FILE.exists():
-        try:
-            data = json.loads(PRO_USERS_FILE.read_text(encoding="utf-8"))
-            return set(map(int, data))
-        except Exception:
-            return set()
-    return set()
-
-
-def _save_pro_users(users: set[int]):
-    PRO_USERS_FILE.write_text(
-        json.dumps(list(users), ensure_ascii=False),
-        encoding="utf-8"
-    )
+BILLING_BASE_URL = os.getenv(
+    "BILLING_BASE_URL",
+    "https://pdfbot-billing-production.up.railway.app",
+)
 
 
 def is_pro_user(user_id: int) -> bool:
-    """Проверяет, есть ли пользователь в списке PRO."""
-    users = _load_pro_users()
-    return user_id in users
+    """
+    Проверяет PRO-статус пользователя через сервис billing.
+    Делает запрос:
+        GET {BILLING_BASE_URL}/is-pro?user_id=...
+    """
+    try:
+        resp = requests.get(
+            f"{BILLING_BASE_URL}/is-pro",
+            params={"user_id": user_id},
+            timeout=3,
+        )
+        if resp.status_code != 200:
+            return False
 
-
-def add_pro_user(user_id: int):
-    """Добавляет PRO-пользователя (Stripe webhook вызывает эту функцию)."""
-    users = _load_pro_users()
-    users.add(int(user_id))
-    _save_pro_users(users)
+        data = resp.json()
+        return bool(data.get("pro"))
+    except Exception as e:
+        # можно залогировать e, если нужно
+        return False

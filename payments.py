@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Dict
 
 import stripe
-from flask import Flask, request, redirect, abort
+from flask import Flask, request, redirect, abort, jsonify
 
 # ===== Stripe config =====
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
@@ -147,6 +147,31 @@ def payment_success():
 def payment_cancel():
     lang = normalize_lang(request.args.get("lang"))
     return t_local("cancel", lang)
+
+
+@app.get("/is-pro")
+def is_pro():
+    """
+    Вспомогательный эндпоинт для бота.
+    GET /is-pro?user_id=123 -> {"pro": true/false}
+    """
+    user_id = request.args.get("user_id")
+    if not user_id:
+        return jsonify({"pro": False, "error": "missing user_id"}), 400
+
+    try:
+        uid = int(user_id)
+    except ValueError:
+        return jsonify({"pro": False, "error": "bad user_id"}), 400
+
+    data: list[int] = []
+    if PRO_USERS_FILE.exists():
+        try:
+            data = json.loads(PRO_USERS_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            data = []
+
+    return jsonify({"pro": uid in data}), 200
 
 
 @app.get("/health")
