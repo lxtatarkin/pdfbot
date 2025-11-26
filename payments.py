@@ -8,16 +8,18 @@ from flask import Flask, request, redirect, abort
 
 # ===== Stripe config =====
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
-PRICE_ID = os.getenv("STRIPE_PRICE_ID")
+DEFAULT_PRICE_ID = os.getenv("STRIPE_PRICE_ID")  # опционально
+PRICE_MONTH = os.getenv("STRIPE_PRICE_ID_MONTH")
+PRICE_QUARTER = os.getenv("STRIPE_PRICE_ID_QUARTER")
+PRICE_YEAR = os.getenv("STRIPE_PRICE_ID_YEAR")
+
 APP_BASE_URL = os.getenv("APP_BASE_URL", "http://localhost:8000")
 WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 
-# ===== Flask app =====
 app = Flask(__name__)
-
 PRO_USERS_FILE = Path("pro_users.json")
 
-# ===== i18n =====
+# локализация для HTML-страниц
 MESSAGES: Dict[str, Dict[str, str]] = {
     "ru": {
         "success": "Оплата прошла успешно. Можешь вернуться в Telegram-бот.",
@@ -34,23 +36,37 @@ MESSAGES: Dict[str, Dict[str, str]] = {
 }
 
 
-def normalize_lang(lang_raw: str | None) -> str:
-    if not lang_raw:
-        return "ru"
-    lang_raw = lang_raw.lower()
-    if lang_raw.startswith("en"):
+def normalize_lang(raw: str | None) -> str:
+    if not raw:
         return "en"
-    if lang_raw.startswith("ru"):
+    code = raw.lower()
+    if code.startswith(("ru", "uk", "be")):
         return "ru"
-    # при желании можно добавить другие, пока мапим всё неизвестное в en/ru
     return "en"
 
 
-def t(key: str, lang: str) -> str:
-    return MESSAGES.get(lang, MESSAGES["ru"]).get(key, key)
+def t_local(key: str, lang: str) -> str:
+    return MESSAGES.get(lang, MESSAGES["en"]).get(key, key)
 
 
-# ===== PRO users storage (простой JSON для staging) =====
+def choose_price_id(raw: str | None) -> str:
+    """
+    Берём price_id из query (?price_id=...), если его нет —
+    отдаём MONTH или DEFAULT_PRICE_ID.
+    """
+    if raw:
+        return raw
+
+    if PRICE_MONTH:
+        return PRICE_MONTH
+
+    if DEFAULT_PRICE_ID:
+        return DEFAULT_PRICE_ID
+
+    # на крайний случай — чтобы не упасть
+    return PRICE_MONTH or PRICE_QUARTER or PRICE_YEAR
+
+
 def add_pro_user(user_id: int) -> None:
     data: list[int] = []
     if PRO_USERS_FILE.exists():
@@ -63,26 +79,26 @@ def add_pro_user(user_id: int) -> None:
         PRO_USERS_FILE.write_text(json.dumps(data), encoding="utf-8")
 
 
-# ===== Routes =====
 @app.get("/buy-pro")
 def buy_pro():
     tg_user_id = request.args.get("user_id")
-    lang = normalize_lang(request.args.get("lang"))
+    price_id = choose_price_id(request.args.get("price_id"))
+    lang = normalize_lang(request.args.get("lang"))  # на будущее, если захочешь добавлять
 
     if not tg_user_id:
-        return t("missing_user", lang), 400
+        return t_local("missing_user", lang), 400
 
     try:
         checkout_session = stripe.checkout.Session.create(
-            mode="subscription",  # или "payment" для разовой оплаты
-            line_items=[{"price": PRICE_ID, "quantity": 1}],
-            success_url=f"{APP_BASE_URL}/payment-success?lang={lang}",
-            cancel_url=f"{APP_BASE_URL}/payment-cancel?lang={lang}",
-            metadata={"tg_user_id": tg_user_id, "lang": lang},
+            mode="subscription",
+            line_items=[{"price": price_id, "quantity": 1}],
+            success_url=f"{APP_BASE_URL}/payment-success",
+            cancel_url=f"{APP_BASE_URL}/payment-cancel",
+            metadata={"tg_user_id": tg_user_id, "lang": lang, "price_id": price_id},
         )
     except Exception as e:
         print(f"Error creating checkout session: {e}")
-        return t("error_creating_session", lang), 500
+        return t_local("error_creating_session", lang), 500
 
     return redirect(checkout_session.url, code=303)
 
@@ -107,6 +123,8 @@ def stripe_webhook():
         metadata = session.get("metadata", {}) or {}
         tg_user_id = metadata.get("tg_user_id")
         lang = normalize_lang(metadata.get("lang"))
+        price_id = metadata.get("price_id")
+        print(f"Checkout completed: user={tg_user_id}, price_id={price_id}, lang={lang}")
 
         if tg_user_id:
             try:
@@ -122,13 +140,13 @@ def stripe_webhook():
 @app.get("/payment-success")
 def payment_success():
     lang = normalize_lang(request.args.get("lang"))
-    return t("success", lang)
+    return t_local("success", lang)
 
 
 @app.get("/payment-cancel")
 def payment_cancel():
     lang = normalize_lang(request.args.get("lang"))
-    return t("cancel", lang)
+    return t_local("cancel", lang)
 
 
 @app.get("/health")

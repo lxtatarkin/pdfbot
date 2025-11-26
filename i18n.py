@@ -339,13 +339,21 @@ TEXTS: Dict[str, Dict[str, str]] = {
         ),
 
         "pro_info_short": (
-        "💼 <b>PRO-доступ</b>\n\n"
-        "• Лимит до 100 МБ\n"
-        "• OCR и Searchable PDF\n"
-        "• Редактор страниц\n"
-        "• Водяные знаки\n\n"
-        "Нажмите кнопку ниже, чтобы оформить подписку:"
-        )
+            "💼 <b>PRO-доступ</b>\n\n"
+            "Что даёт:\n"
+            "• Лимит до 100 МБ\n"
+            "• OCR (сканы и фото → текст)\n"
+            "• Searchable PDF\n"
+            "• Редактор страниц PDF\n"
+            "• Водяные знаки\n"
+            "• Приоритетная обработка\n\n"
+            "Выберите подходящий план ниже:"
+        ),
+
+        "pro_btn_month": "💳 PRO на 1 месяц — $2.99",
+        "pro_btn_quarter": "💳 PRO на 3 месяца — $6.99",
+        "pro_btn_year": "💳 PRO на 12 месяцев — $19.99",
+        
     },
 
     "en": {
@@ -377,17 +385,16 @@ TEXTS: Dict[str, Dict[str, str]] = {
             "• PDF watermarks\n"
             "• Files up to 100 MB"
         ),
-        "pro_info": (
+        "pro_info_short": (
             "💼 <b>PRO access</b>\n\n"
-            "What you get now:\n"
             "• Limit up to 100 MB\n"
             "• OCR (scans and photos → text)\n"
-            "• Searchable PDF (scan → PDF with selectable text)\n"
-            "• PDF page editor (rotate/delete/extract)\n"
-            "• PDF watermarks\n"
-            "• Priority in queue (planned)\n\n"
-            "To get PRO — contact the bot owner."
+            "• Searchable PDF\n"
+            "• PDF page editor\n"
+            "• Watermarks\n\n"
+            "Tap the button below to get PRO via Stripe."
         ),
+        "pro_pay_button": "💳 Get PRO",
 
         # ===== MAIN MENU BUTTONS =====
         "btn_main_compress": "📉 Compress PDF",
@@ -640,13 +647,20 @@ TEXTS: Dict[str, Dict[str, str]] = {
         ),
 
         "pro_info_short": (
-        "💼 <b>PRO access</b>\n\n"
-        "• Limit up to 100 MB\n"
-        "• OCR & Searchable PDF\n"
-        "• Page editor\n"
-        "• Watermarks\n\n"
-        "Tap the button below to subscribe:"
+            "💼 <b>PRO access</b>\n\n"
+            "Includes:\n"
+            "• Limit up to 100 MB\n"
+            "• OCR (scans/photos → text)\n"
+            "• Searchable PDF\n"
+            "• PDF page editor\n"
+            "• Watermarks\n"
+            "• Priority processing\n\n"
+            "Choose a plan below:"
         ),
+
+        "pro_btn_month": "💳 Monthly — $2.99",
+        "pro_btn_quarter": "💳 Quarterly — $6.99",
+        "pro_btn_year": "💳 Yearly — $19.99",
     },
 }
 
