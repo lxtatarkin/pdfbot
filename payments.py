@@ -1,7 +1,7 @@
 import os
 import json
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List, Any, Optional
 
 import stripe
 from flask import Flask, request, redirect, abort, jsonify
@@ -17,7 +17,9 @@ APP_BASE_URL = os.getenv("APP_BASE_URL", "http://localhost:8000")
 WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
 
 app = Flask(__name__)
+
 PRO_USERS_FILE = Path("pro_users.json")
+CUSTOMERS_FILE = Path("customers.json")  # связь tg_user_id <-> stripe_customer_id
 
 # локализация для HTML-страниц
 MESSAGES: Dict[str, Dict[str, str]] = {
@@ -27,6 +29,8 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         "cancel": "Оплата отменена. Можешь попробовать ещё раз из бота.",
         "missing_user": "Отсутствует параметр user_id.",
         "error_creating_session": "Ошибка при создании сессии оплаты.",
+        "no_customer": "Не найдена активная подписка для этого пользователя.",
+        "portal_error": "Не удалось открыть страницу управления подпиской. Попробуйте позже.",
     },
     "en": {
         "success": "Payment successful. You can now return to the Telegram bot.",
@@ -34,6 +38,8 @@ MESSAGES: Dict[str, Dict[str, str]] = {
         "cancel": "Payment was canceled. You can try again from the bot.",
         "missing_user": "Missing user_id parameter.",
         "error_creating_session": "Error while creating checkout session.",
+        "no_customer": "No active subscription found for this user.",
+        "portal_error": "Failed to open subscription management page. Please try again later.",
     },
 }
 
@@ -69,8 +75,13 @@ def choose_price_id(raw: str | None) -> str:
     return PRICE_MONTH or PRICE_QUARTER or PRICE_YEAR
 
 
+# ==========================
+#   PRO USERS STORAGE
+# ==========================
+
+
 def add_pro_user(user_id: int) -> None:
-    data: list[int] = []
+    data: List[int] = []
     if PRO_USERS_FILE.exists():
         try:
             data = json.loads(PRO_USERS_FILE.read_text(encoding="utf-8"))
@@ -79,6 +90,82 @@ def add_pro_user(user_id: int) -> None:
     if user_id not in data:
         data.append(user_id)
         PRO_USERS_FILE.write_text(json.dumps(data), encoding="utf-8")
+
+
+def remove_pro_user(user_id: int) -> None:
+    if not PRO_USERS_FILE.exists():
+        return
+    try:
+        data: List[int] = json.loads(PRO_USERS_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return
+    new_data = [uid for uid in data if uid != user_id]
+    PRO_USERS_FILE.write_text(json.dumps(new_data), encoding="utf-8")
+
+
+# ==========================
+#   CUSTOMERS STORAGE
+#   customers.json: [{"user_id": 123, "customer_id": "cus_XXX"}, ...]
+# ==========================
+
+
+def _load_customers() -> List[Dict[str, Any]]:
+    if not CUSTOMERS_FILE.exists():
+        return []
+    try:
+        data = json.loads(CUSTOMERS_FILE.read_text(encoding="utf-8"))
+        if isinstance(data, list):
+            return data
+    except Exception:
+        pass
+    return []
+
+
+def _save_customers(customers: List[Dict[str, Any]]) -> None:
+    CUSTOMERS_FILE.write_text(
+        json.dumps(customers, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+
+def upsert_customer(user_id: int, customer_id: str) -> None:
+    customers = _load_customers()
+    found = False
+    for c in customers:
+        if int(c.get("user_id", 0)) == user_id:
+            c["customer_id"] = customer_id
+            found = True
+            break
+    if not found:
+        customers.append({"user_id": user_id, "customer_id": customer_id})
+    _save_customers(customers)
+
+
+def find_customer_by_user_id(user_id: int) -> Optional[str]:
+    customers = _load_customers()
+    for c in customers:
+        try:
+            if int(c.get("user_id", 0)) == user_id:
+                return str(c.get("customer_id"))
+        except Exception:
+            continue
+    return None
+
+
+def find_user_by_customer_id(customer_id: str) -> Optional[int]:
+    customers = _load_customers()
+    for c in customers:
+        if str(c.get("customer_id")) == customer_id:
+            try:
+                return int(c.get("user_id"))
+            except Exception:
+                return None
+    return None
+
+
+# ==========================
+#   ROUTES
+# ==========================
 
 
 @app.get("/buy-pro")
@@ -120,21 +207,43 @@ def stripe_webhook():
         print("Webhook error:", e)
         return abort(400)
 
-    if event["type"] == "checkout.session.completed":
-        session = event["data"]["object"]
+    event_type = event.get("type")
+    data_object = event.get("data", {}).get("object", {})
+
+    # Успешное завершение Checkout-сессии (первая покупка)
+    if event_type == "checkout.session.completed":
+        session = data_object
         metadata = session.get("metadata", {}) or {}
         tg_user_id = metadata.get("tg_user_id")
         lang = normalize_lang(metadata.get("lang"))
         price_id = metadata.get("price_id")
-        print(f"Checkout completed: user={tg_user_id}, price_id={price_id}, lang={lang}")
+        customer_id = session.get("customer")
+        print(
+            f"Checkout completed: user={tg_user_id}, price_id={price_id}, "
+            f"lang={lang}, customer_id={customer_id}"
+        )
 
         if tg_user_id:
             try:
-                add_pro_user(int(tg_user_id))
+                uid = int(tg_user_id)
             except ValueError:
                 print(f"Invalid tg_user_id in metadata: {tg_user_id}")
             else:
-                print(f"Activated PRO for user {tg_user_id} ({lang})")
+                add_pro_user(uid)
+                if customer_id:
+                    upsert_customer(uid, customer_id)
+                print(f"Activated PRO for user {uid} ({lang})")
+
+    # Подписка отменена (через портал/Stripe)
+    elif event_type == "customer.subscription.deleted":
+        subscription = data_object
+        customer_id = subscription.get("customer")
+        print(f"Subscription deleted for customer={customer_id}")
+        if customer_id:
+            user_id = find_user_by_customer_id(customer_id)
+            if user_id is not None:
+                remove_pro_user(user_id)
+                print(f"Deactivated PRO for user {user_id} (subscription deleted)")
 
     return "", 200
 
@@ -195,7 +304,6 @@ def payment_success():
       <body>
         <div class="card">
           <h2>✅ {msg}</h2>
-          <p>{"" if lang == "en" else ""}</p>
           <a class="button" href="{telegram_link}">{btn_text}</a>
         </div>
       </body>
@@ -224,7 +332,7 @@ def is_pro():
     except ValueError:
         return jsonify({"pro": False, "error": "bad user_id"}), 400
 
-    data: list[int] = []
+    data: List[int] = []
     if PRO_USERS_FILE.exists():
         try:
             data = json.loads(PRO_USERS_FILE.read_text(encoding="utf-8"))
@@ -232,6 +340,39 @@ def is_pro():
             data = []
 
     return jsonify({"pro": uid in data}), 200
+
+
+@app.get("/customer-portal")
+def customer_portal():
+    """
+    Открытие Stripe Customer Portal для управления подпиской:
+    GET /customer-portal?user_id=123&lang=ru
+    """
+    raw_user_id = request.args.get("user_id")
+    lang = normalize_lang(request.args.get("lang"))
+
+    if not raw_user_id:
+        return t_local("missing_user", lang), 400
+
+    try:
+        user_id = int(raw_user_id)
+    except ValueError:
+        return t_local("missing_user", lang), 400
+
+    customer_id = find_customer_by_user_id(user_id)
+    if not customer_id:
+        return t_local("no_customer", lang), 404
+
+    try:
+        portal_session = stripe.billing_portal.Session.create(
+            customer=customer_id,
+            return_url=f"{APP_BASE_URL}/payment-success?lang={lang}",
+        )
+    except Exception as e:
+        print(f"Error creating billing portal session: {e}")
+        return t_local("portal_error", lang), 500
+
+    return redirect(portal_session.url, code=303)
 
 
 @app.get("/health")
