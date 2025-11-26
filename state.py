@@ -25,7 +25,7 @@ user_watermark_state: Dict[int, dict] = {}
 user_pages_state: Dict[int, dict] = {}
 
 # ==========================
-#   PRO USERS (через billing)
+#   PRO USERS via billing
 # ==========================
 
 BILLING_BASE_URL = os.getenv(
@@ -37,8 +37,7 @@ BILLING_BASE_URL = os.getenv(
 def is_pro_user(user_id: int) -> bool:
     """
     Проверяет PRO-статус пользователя через сервис billing.
-    Делает запрос:
-        GET {BILLING_BASE_URL}/is-pro?user_id=...
+    GET {BILLING_BASE_URL}/is-pro?user_id=...
     """
     try:
         resp = requests.get(
@@ -51,6 +50,5 @@ def is_pro_user(user_id: int) -> bool:
 
         data = resp.json()
         return bool(data.get("pro"))
-    except Exception as e:
-        # можно залогировать e, если нужно
+    except Exception:
         return False

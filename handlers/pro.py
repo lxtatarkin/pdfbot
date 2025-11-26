@@ -1,70 +1,71 @@
 import os
-from aiogram import Router
-from aiogram.filters import Command
+
+from aiogram import Router, F
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 
-from i18n import t, set_user_lang
+from i18n import t, get_user_lang
 from state import is_pro_user
 
 router = Router()
 
-APP_BASE_URL = os.getenv("APP_BASE_URL", "").rstrip("/")
-
-# ID цен из Stripe (для читаемости отдельные переменные)
-PRICE_MONTH = os.getenv("STRIPE_PRICE_ID_MONTH")
-PRICE_QUARTER = os.getenv("STRIPE_PRICE_ID_QUARTER")
-PRICE_YEAR = os.getenv("STRIPE_PRICE_ID_YEAR")
+APP_BASE_URL = os.getenv("APP_BASE_URL")  # тот же, что у billing
 
 
-@router.message(Command("pro"))
+@router.message(F.text == "/pro")
 async def cmd_pro(message: Message):
-    user = message.from_user
-    if not user:
-        return
+    user_id = message.from_user.id
 
-    user_id = user.id
+    # Язык пользователя (ru/en) из i18n-хранилища
+    lang = get_user_lang(user_id)
 
-    # фиксируем язык пользователя в i18n
-    set_user_lang(user_id, user.language_code)
-
-    # уже PRO
+    # Если уже PRO — показываем статусы + кнопку управления подпиской
     if is_pro_user(user_id):
+        manage_url = f"{APP_BASE_URL}/customer-portal?user_id={user_id}&lang={lang}"
+
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(
+                        text=t(user_id, "pro_manage_btn"),
+                        url=manage_url,
+                    )
+                ]
+            ]
+        )
+
         await message.answer(
             t(user_id, "pro_already", max_size="100 MB"),
+            reply_markup=keyboard,
             parse_mode="HTML",
         )
         return
 
-    # если APP_BASE_URL или цены не заданы — показываем старый текст без кнопок
-    if not APP_BASE_URL or not (PRICE_MONTH and PRICE_QUARTER and PRICE_YEAR):
-        await message.answer(
-            t(user_id, "pro_info"),
-            parse_mode="HTML",
-        )
-        return
+    # Иначе — экран покупки PRO (оставь как было, либо вот так)
+    pay_url = f"{APP_BASE_URL}/buy-pro?user_id={user_id}"
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
                     text=t(user_id, "pro_btn_month"),
-                    url=f"{APP_BASE_URL}/buy-pro?user_id={user_id}&price_id={PRICE_MONTH}",
+                    url=f"{APP_BASE_URL}/buy-pro?user_id={user_id}&price_id=price_month_placeholder",
                 )
             ],
             [
                 InlineKeyboardButton(
                     text=t(user_id, "pro_btn_quarter"),
-                    url=f"{APP_BASE_URL}/buy-pro?user_id={user_id}&price_id={PRICE_QUARTER}",
+                    url=f"{APP_BASE_URL}/buy-pro?user_id={user_id}&price_id=price_quarter_placeholder",
                 )
             ],
             [
                 InlineKeyboardButton(
                     text=t(user_id, "pro_btn_year"),
-                    url=f"{APP_BASE_URL}/buy-pro?user_id={user_id}&price_id={PRICE_YEAR}",
+                    url=f"{APP_BASE_URL}/buy-pro?user_id={user_id}&price_id=price_year_placeholder",
                 )
             ],
         ]
     )
+    # или используй твой текущий вариант с одной кнопкой, если он уже работает
 
     await message.answer(
         t(user_id, "pro_info_short"),

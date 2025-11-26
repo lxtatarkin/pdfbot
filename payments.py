@@ -252,8 +252,9 @@ def stripe_webhook():
 def payment_success():
     lang = normalize_lang(request.args.get("lang"))
 
-    bot_username = os.getenv("BOT_USERNAME", "your_bot_username")  # заменишь на своего
-    telegram_link = f"https://t.me/{bot_username}?start=pro_ok"
+    bot_username = os.getenv("BOT_USERNAME", "your_bot_username")  # ЗАМЕНИ на своего
+    tg_deeplink = f"tg://resolve?domain={bot_username}&start=pro_ok"
+    tg_web_link = f"https://t.me/{bot_username}?start=pro_ok"
 
     msg = t_local("success", lang)
     btn_text = t_local("success_btn", lang)
@@ -285,7 +286,7 @@ def payment_success():
             font-size: 22px;
           }}
           p {{
-            margin: 0 0 24px 0;
+            margin: 0 0 16px 0;
             font-size: 15px;
             color: #444444;
           }}
@@ -298,18 +299,25 @@ def payment_success():
             border-radius: 999px;
             font-size: 16px;
             font-weight: 600;
+            margin-bottom: 12px;
+          }}
+          a.small {{
+            font-size: 13px;
+            color: #555555;
           }}
         </style>
       </head>
       <body>
         <div class="card">
           <h2>✅ {msg}</h2>
-          <a class="button" href="{telegram_link}">{btn_text}</a>
+          <p></p>
+          <a class="button" href="{tg_deeplink}">{btn_text}</a>
+          <br/>
+          <a class="small" href="{tg_web_link}">Если кнопка не сработала — открыть Telegram по ссылке</a>
         </div>
       </body>
     </html>
     """
-
 
 @app.get("/payment-cancel")
 def payment_cancel():

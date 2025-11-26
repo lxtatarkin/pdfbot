@@ -357,6 +357,8 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "pro_btn_month": "🔹 $2.99 / месяц",
         "pro_btn_quarter": "🔸 $6.99 / 3 месяца",
         "pro_btn_year": "🏆 $19.99 / год",
+
+        "pro_manage_btn": "🔧 Управлять подпиской",
         
     },
 
@@ -669,6 +671,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "pro_btn_month": "🔹 $2.99 / month",
         "pro_btn_quarter": "🔸 $6.99 / 3 months",
         "pro_btn_year": "🏆 $19.99 / year",
+        "pro_manage_btn": "🔧 Manage subscription",
     },
 }
 
