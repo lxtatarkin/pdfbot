@@ -340,19 +340,23 @@ TEXTS: Dict[str, Dict[str, str]] = {
 
         "pro_info_short": (
             "💼 <b>PRO-доступ</b>\n\n"
-            "Что даёт:\n"
-            "• Лимит до 100 МБ\n"
-            "• OCR (сканы и фото → текст)\n"
-            "• Searchable PDF\n"
-            "• Редактор страниц PDF\n"
-            "• Водяные знаки\n"
-            "• Приоритетная обработка\n\n"
-            "Выберите подходящий план ниже:"
+            "Открывает все инструменты:\n"
+            "• До <b>100 МБ</b> на файл\n"
+            "• <b>OCR</b> для сканов и фото\n"
+            "• <b>Searchable PDF</b>\n"
+            "• <b>Редактор страниц</b>\n"
+            "• <b>Водяные знаки</b>\n"
+            "• <b>Приоритетная обработка</b>\n\n"
+            "<b>Тарифы:</b>\n"
+            "• $2.99 / месяц — гибко\n"
+            "• $6.99 / 3 месяца — экономия 22%\n"
+            "• $19.99 / год — экономия 44% (лучший выбор)\n\n"
+            "Выберите план ниже 👇"
         ),
 
-        "pro_btn_month": "💳 $2.99 / месяц",
-        "pro_btn_quarter": "💳 $6.99 / 3 месяца",
-        "pro_btn_year": "💳 $19.99 / год",
+        "pro_btn_month": "🔹 $2.99 / месяц",
+        "pro_btn_quarter": "🔸 $6.99 / 3 месяца",
+        "pro_btn_year": "🏆 $19.99 / год",
         
     },
 
@@ -648,19 +652,23 @@ TEXTS: Dict[str, Dict[str, str]] = {
 
         "pro_info_short": (
             "💼 <b>PRO access</b>\n\n"
-            "Includes:\n"
-            "• Limit up to 100 MB\n"
-            "• OCR (scans/photos → text)\n"
-            "• Searchable PDF\n"
-            "• PDF page editor\n"
-            "• Watermarks\n"
-            "• Priority processing\n\n"
-            "Choose a plan below:"
+            "Unlock all premium tools:\n"
+            "• Up to <b>100 MB</b> per file\n"
+            "• <b>OCR</b> for scans/photos\n"
+            "• <b>Searchable PDF</b>\n"
+            "• <b>Page editor</b> (rotate/delete/extract)\n"
+            "• <b>Watermarks</b>\n"
+            "• <b>Priority processing</b>\n\n"
+            "<b>Plans:</b>\n"
+            "• $2.99 / month — flexible\n"
+            "• $6.99 / 3 months — save 22%\n"
+            "• $19.99 / year — save 44% (best value)\n\n"
+            "Choose a plan below 👇"
         ),
 
-        "pro_btn_month": "💳 $2.99 / month",
-        "pro_btn_quarter": "💳 $6.99 / 3 months",
-        "pro_btn_year": "💳 $19.99 / year",
+        "pro_btn_month": "🔹 $2.99 / month",
+        "pro_btn_quarter": "🔸 $6.99 / 3 months",
+        "pro_btn_year": "🏆 $19.99 / year",
     },
 }
 
