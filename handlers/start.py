@@ -1,6 +1,6 @@
 # handlers/start.py
 from aiogram import Router, types
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandStart, CommandObject
 
 from settings import (
     is_pro,
@@ -21,8 +21,14 @@ from i18n import set_user_lang, t
 router = Router()
 
 
-@router.message(Command("start"))
-async def start_cmd(message: types.Message):
+@router.message(CommandStart())
+async def start_cmd(message: types.Message, command: CommandObject):
+    """
+    /start и /start <args>
+
+    Используем CommandStart + CommandObject, чтобы прочитать аргументы
+    (deep-link вида /start pro_ok).
+    """
     user_id = message.from_user.id
     username = message.from_user.username
     tg_lang = message.from_user.language_code
@@ -36,12 +42,24 @@ async def start_cmd(message: types.Message):
     user_watermark_state[user_id] = {}
     user_pages_state[user_id] = {}
 
+    # статус тарифа и лимит
     tier = "PRO" if is_pro(user_id) else "FREE"
     limit_mb = format_mb(get_user_limit(user_id))
 
     logger.info(
         f"/start from {user_id} ({username}), tier={tier}, lang={lang}, tg_lang={tg_lang}"
     )
+
+    # если пришли по deep-link после успешной оплаты: /start pro_ok
+    args = (command.args or "").strip() if command else ""
+    if args == "pro_ok" and tier == "PRO":
+        # отдельное сообщение: PRO активирован
+        await message.answer(
+            t(user_id, "pro_activated"),
+            parse_mode="HTML",
+        )
+
+    # основное приветствие (как и было раньше)
     await message.answer(
         t(user_id, "start_main", tier=tier, limit_mb=limit_mb),
         reply_markup=get_main_keyboard(user_id),
