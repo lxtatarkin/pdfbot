@@ -8,10 +8,12 @@ from flask import Flask, request, redirect, abort, jsonify
 
 # ===== Stripe config =====
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
-DEFAULT_PRICE_ID = os.getenv("STRIPE_PRICE_ID")  # опционально
+
+# Цены из переменных окружения
 PRICE_MONTH = os.getenv("STRIPE_PRICE_ID_MONTH")
 PRICE_QUARTER = os.getenv("STRIPE_PRICE_ID_QUARTER")
 PRICE_YEAR = os.getenv("STRIPE_PRICE_ID_YEAR")
+DEFAULT_PRICE_ID = os.getenv("STRIPE_PRICE_ID")  # опционально
 
 APP_BASE_URL = os.getenv("APP_BASE_URL", "http://localhost:8000")
 WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
@@ -21,7 +23,7 @@ app = Flask(__name__)
 PRO_USERS_FILE = Path("pro_users.json")
 CUSTOMERS_FILE = Path("customers.json")  # связь tg_user_id <-> stripe_customer_id
 
-# локализация для HTML-страниц
+# ===== Локализация HTML-страниц =====
 MESSAGES: Dict[str, Dict[str, str]] = {
     "ru": {
         "success": "Оплата прошла успешно. Можешь вернуться в Telegram-бот.",
@@ -44,7 +46,7 @@ MESSAGES: Dict[str, Dict[str, str]] = {
 }
 
 
-def normalize_lang(raw: str | None) -> str:
+def normalize_lang(raw: Optional[str]) -> str:
     if not raw:
         return "en"
     code = raw.lower()
@@ -57,21 +59,36 @@ def t_local(key: str, lang: str) -> str:
     return MESSAGES.get(lang, MESSAGES["en"]).get(key, key)
 
 
-def choose_price_id(raw: str | None) -> str:
+def choose_price_id(raw: Optional[str]) -> str:
     """
-    Берём price_id из query (?price_id=...), если его нет —
-    отдаём MONTH или DEFAULT_PRICE_ID.
+    raw может быть:
+      - None  -> берём MONTH как дефолт
+      - "month" / "quarter" / "year"
+      - реальный price_id, начинающийся с "price_"
     """
-    if raw:
+    # Если уже пришёл реальный price_id
+    if raw and raw.startswith("price_"):
         return raw
 
+    # План из query: month / quarter / year
+    if raw == "month":
+        if PRICE_MONTH:
+            return PRICE_MONTH
+    elif raw == "quarter":
+        if PRICE_QUARTER:
+            return PRICE_QUARTER
+    elif raw == "year":
+        if PRICE_YEAR:
+            return PRICE_YEAR
+
+    # Дефолт: помесячная, если есть
     if PRICE_MONTH:
         return PRICE_MONTH
 
+    # Далее — любые запасные варианты
     if DEFAULT_PRICE_ID:
         return DEFAULT_PRICE_ID
 
-    # на крайний случай — чтобы не упасть
     return PRICE_MONTH or PRICE_QUARTER or PRICE_YEAR
 
 
@@ -171,11 +188,14 @@ def find_user_by_customer_id(customer_id: str) -> Optional[int]:
 @app.get("/buy-pro")
 def buy_pro():
     tg_user_id = request.args.get("user_id")
-    price_id = choose_price_id(request.args.get("price_id"))
-    lang = normalize_lang(request.args.get("lang"))  # на будущее, если захочешь добавлять
+    # вместо price_id теперь лучше использовать plan=month|quarter|year
+    plan = request.args.get("plan")
+    lang = normalize_lang(request.args.get("lang"))
 
     if not tg_user_id:
         return t_local("missing_user", lang), 400
+
+    price_id = choose_price_id(plan)
 
     try:
         checkout_session = stripe.checkout.Session.create(
@@ -183,7 +203,12 @@ def buy_pro():
             line_items=[{"price": price_id, "quantity": 1}],
             success_url=f"{APP_BASE_URL}/payment-success?lang={lang}",
             cancel_url=f"{APP_BASE_URL}/payment-cancel?lang={lang}",
-            metadata={"tg_user_id": tg_user_id, "lang": lang, "price_id": price_id},
+            metadata={
+                "tg_user_id": tg_user_id,
+                "lang": lang,
+                "price_id": price_id,
+                "plan": plan or "",
+            },
         )
     except Exception as e:
         print(f"Error creating checkout session: {e}")
@@ -217,10 +242,11 @@ def stripe_webhook():
         tg_user_id = metadata.get("tg_user_id")
         lang = normalize_lang(metadata.get("lang"))
         price_id = metadata.get("price_id")
+        plan = metadata.get("plan")
         customer_id = session.get("customer")
         print(
             f"Checkout completed: user={tg_user_id}, price_id={price_id}, "
-            f"lang={lang}, customer_id={customer_id}"
+            f"plan={plan}, lang={lang}, customer_id={customer_id}"
         )
 
         if tg_user_id:
@@ -252,7 +278,7 @@ def stripe_webhook():
 def payment_success():
     lang = normalize_lang(request.args.get("lang"))
 
-    bot_username = os.getenv("BOT_USERNAME", "your_bot_username")  # ЗАМЕНИ на своего
+    bot_username = os.getenv("BOT_USERNAME", "your_bot_username")
     tg_deeplink = f"tg://resolve?domain={bot_username}&start=pro_ok"
     tg_web_link = f"https://t.me/{bot_username}?start=pro_ok"
 
@@ -318,6 +344,7 @@ def payment_success():
       </body>
     </html>
     """
+
 
 @app.get("/payment-cancel")
 def payment_cancel():

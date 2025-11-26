@@ -4,23 +4,24 @@ from aiogram import Router, F
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 
 from i18n import t, get_user_lang
-from state import is_pro_user
+from state import is_pro_user  # эта функция должна дергать /is-pro на billing
 
 router = Router()
 
-APP_BASE_URL = os.getenv("APP_BASE_URL")  # тот же, что у billing
+# Базовый URL биллинга (pdfbot-billing)
+BILLING_BASE_URL = os.getenv("APP_BASE_URL")  # в pdfbot-staging он у тебя уже такой
 
 
 @router.message(F.text == "/pro")
 async def cmd_pro(message: Message):
     user_id = message.from_user.id
-
-    # Язык пользователя (ru/en) из i18n-хранилища
     lang = get_user_lang(user_id)
 
-    # Если уже PRO — показываем статусы + кнопку управления подпиской
+    # Уже PRO → текст + кнопка "Управлять подпиской"
     if is_pro_user(user_id):
-        manage_url = f"{APP_BASE_URL}/customer-portal?user_id={user_id}&lang={lang}"
+        manage_url = (
+            f"{BILLING_BASE_URL}/customer-portal?user_id={user_id}&lang={lang}"
+        )
 
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
@@ -40,32 +41,38 @@ async def cmd_pro(message: Message):
         )
         return
 
-    # Иначе — экран покупки PRO (оставь как было, либо вот так)
-    pay_url = f"{APP_BASE_URL}/buy-pro?user_id={user_id}"
-
+    # Нет PRO → показываем планы
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
                     text=t(user_id, "pro_btn_month"),
-                    url=f"{APP_BASE_URL}/buy-pro?user_id={user_id}&price_id=price_month_placeholder",
+                    url=(
+                        f"{BILLING_BASE_URL}/buy-pro"
+                        f"?user_id={user_id}&plan=month&lang={lang}"
+                    ),
                 )
             ],
             [
                 InlineKeyboardButton(
                     text=t(user_id, "pro_btn_quarter"),
-                    url=f"{APP_BASE_URL}/buy-pro?user_id={user_id}&price_id=price_quarter_placeholder",
+                    url=(
+                        f"{BILLING_BASE_URL}/buy-pro"
+                        f"?user_id={user_id}&plan=quarter&lang={lang}"
+                    ),
                 )
             ],
             [
                 InlineKeyboardButton(
                     text=t(user_id, "pro_btn_year"),
-                    url=f"{APP_BASE_URL}/buy-pro?user_id={user_id}&price_id=price_year_placeholder",
+                    url=(
+                        f"{BILLING_BASE_URL}/buy-pro"
+                        f"?user_id={user_id}&plan=year&lang={lang}"
+                    ),
                 )
             ],
         ]
     )
-    # или используй твой текущий вариант с одной кнопкой, если он уже работает
 
     await message.answer(
         t(user_id, "pro_info_short"),
