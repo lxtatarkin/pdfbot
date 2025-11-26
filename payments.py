@@ -23,12 +23,14 @@ PRO_USERS_FILE = Path("pro_users.json")
 MESSAGES: Dict[str, Dict[str, str]] = {
     "ru": {
         "success": "Оплата прошла успешно. Можешь вернуться в Telegram-бот.",
+        "success_btn": "Открыть Telegram",
         "cancel": "Оплата отменена. Можешь попробовать ещё раз из бота.",
         "missing_user": "Отсутствует параметр user_id.",
         "error_creating_session": "Ошибка при создании сессии оплаты.",
     },
     "en": {
         "success": "Payment successful. You can now return to the Telegram bot.",
+        "success_btn": "Open Telegram",
         "cancel": "Payment was canceled. You can try again from the bot.",
         "missing_user": "Missing user_id parameter.",
         "error_creating_session": "Error while creating checkout session.",
@@ -92,8 +94,8 @@ def buy_pro():
         checkout_session = stripe.checkout.Session.create(
             mode="subscription",
             line_items=[{"price": price_id, "quantity": 1}],
-            success_url=f"{APP_BASE_URL}/payment-success",
-            cancel_url=f"{APP_BASE_URL}/payment-cancel",
+            success_url=f"{APP_BASE_URL}/payment-success?lang={lang}",
+            cancel_url=f"{APP_BASE_URL}/payment-cancel?lang={lang}",
             metadata={"tg_user_id": tg_user_id, "lang": lang, "price_id": price_id},
         )
     except Exception as e:
@@ -140,7 +142,65 @@ def stripe_webhook():
 @app.get("/payment-success")
 def payment_success():
     lang = normalize_lang(request.args.get("lang"))
-    return t_local("success", lang)
+
+    bot_username = os.getenv("BOT_USERNAME", "your_bot_username")  # заменишь на своего
+    telegram_link = f"https://t.me/{bot_username}?start=pro_ok"
+
+    msg = t_local("success", lang)
+    btn_text = t_local("success_btn", lang)
+
+    return f"""
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Success</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+        <style>
+          body {{
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            padding: 32px;
+            text-align: center;
+            background-color: #f5f5f5;
+          }}
+          .card {{
+            max-width: 420px;
+            margin: 40px auto;
+            background: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            padding: 32px 24px;
+          }}
+          h2 {{
+            margin-top: 0;
+            margin-bottom: 16px;
+            font-size: 22px;
+          }}
+          p {{
+            margin: 0 0 24px 0;
+            font-size: 15px;
+            color: #444444;
+          }}
+          a.button {{
+            display: inline-block;
+            padding: 12px 24px;
+            background: #4CAF50;
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 999px;
+            font-size: 16px;
+            font-weight: 600;
+          }}
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <h2>✅ {msg}</h2>
+          <p>{"" if lang == "en" else ""}</p>
+          <a class="button" href="{telegram_link}">{btn_text}</a>
+        </div>
+      </body>
+    </html>
+    """
 
 
 @app.get("/payment-cancel")
