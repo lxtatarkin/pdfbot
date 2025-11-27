@@ -1,4 +1,3 @@
-# handlers/pdf.py
 from pathlib import Path
 import zipfile
 

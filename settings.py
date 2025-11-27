@@ -1,7 +1,7 @@
-# settings.py
 import os
 import logging
 from typing import Optional
+from pathlib import Path
 
 import requests
 
@@ -9,6 +9,15 @@ import requests
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
+# ========== PATHS ==========
+BASE_DIR = Path(__file__).resolve().parent
+
+# Папка для файлов, с которыми работает бот
+FILES_DIR = BASE_DIR / "files"
+TMP_DIR = BASE_DIR / "tmp"
+
+FILES_DIR.mkdir(parents=True, exist_ok=True)
+TMP_DIR.mkdir(parents=True, exist_ok=True)
 
 # ========== BOT CONFIG ==========
 # Токен бота из переменной окружения BOT_TOKEN
@@ -19,10 +28,9 @@ if not TOKEN:
 # username бота без @ — нужен для deeplink и HTML-страниц биллинга
 BOT_USERNAME = os.getenv("BOT_USERNAME", "your_bot_username")
 
-
 # ========== LIMITS ==========
-FREE_MAX_SIZE = 20 * 1024 * 1024     # 20 MB
-PRO_MAX_SIZE = 100 * 1024 * 1024     # 100 MB
+FREE_MAX_SIZE = 20 * 1024 * 1024  # 20 MB
+PRO_MAX_SIZE = 100 * 1024 * 1024  # 100 MB
 
 
 def format_mb(size_bytes: int) -> str:
