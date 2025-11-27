@@ -138,3 +138,15 @@ def get_watermark_keyboard(
     )
 
     return InlineKeyboardMarkup(inline_keyboard=grid)
+
+def get_merge_keyboard(user_id: int = 0) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=t(user_id, "merge_confirm"),
+                    callback_data="merge:confirm",
+                )
+            ]
+        ]
+    )
