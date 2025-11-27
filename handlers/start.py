@@ -1,6 +1,6 @@
 # handlers/start.py
 from aiogram import Router, types
-from aiogram.filters import Command, CommandStart, CommandObject
+from aiogram.filters import Command
 
 from settings import (
     is_pro,
@@ -8,6 +8,7 @@ from settings import (
     format_mb,
     logger,
     PRO_MAX_SIZE,
+    FREE_MAX_SIZE,
 )
 from state import (
     user_modes,
@@ -21,14 +22,8 @@ from i18n import set_user_lang, t
 router = Router()
 
 
-@router.message(CommandStart())
-async def start_cmd(message: types.Message, command: CommandObject):
-    """
-    /start и /start <args>
-
-    Используем CommandStart + CommandObject, чтобы прочитать аргументы
-    (deep-link вида /start pro_ok).
-    """
+@router.message(Command("start"))
+async def start_cmd(message: types.Message):
     user_id = message.from_user.id
     username = message.from_user.username
     tg_lang = message.from_user.language_code
@@ -36,32 +31,31 @@ async def start_cmd(message: types.Message, command: CommandObject):
     # автоопределение языка
     lang = set_user_lang(user_id, tg_lang)
 
-    # сброс состояния пользователя
+    # сброс состояния пользователя (нормально)
     user_modes[user_id] = "compress"
     user_merge_files[user_id] = []
     user_watermark_state[user_id] = {}
     user_pages_state[user_id] = {}
 
-    # статус тарифа и лимит
-    tier = "PRO" if is_pro(user_id) else "FREE"
-    limit_mb = format_mb(get_user_limit(user_id))
+    # ------- ПРОВЕРКА ПРО-СТАТУСА ----------
+    is_pro_now = is_pro(user_id)
+    tier = "PRO" if is_pro_now else "FREE"
+
+    # лимит по тарифу
+    limit_mb_value = PRO_MAX_SIZE if is_pro_now else FREE_MAX_SIZE
+    limit_mb = format_mb(limit_mb_value)
 
     logger.info(
         f"/start from {user_id} ({username}), tier={tier}, lang={lang}, tg_lang={tg_lang}"
     )
 
-    # если пришли по deep-link после успешной оплаты: /start pro_ok
-    args = (command.args or "").strip() if command else ""
-    if args == "pro_ok" and tier == "PRO":
-        # отдельное сообщение: PRO активирован
-        await message.answer(
-            t(user_id, "pro_activated"),
-            parse_mode="HTML",
-        )
-
-    # основное приветствие (как и было раньше)
     await message.answer(
-        t(user_id, "start_main", tier=tier, limit_mb=limit_mb),
+        t(
+            user_id,
+            "start_main",
+            tier=tier,
+            limit_mb=limit_mb,
+        ),
         reply_markup=get_main_keyboard(user_id),
         parse_mode="HTML",
     )
@@ -70,8 +64,10 @@ async def start_cmd(message: types.Message, command: CommandObject):
 @router.message(Command("pro"))
 async def pro_cmd(message: types.Message):
     user_id = message.from_user.id
+    lang = set_user_lang(user_id, message.from_user.language_code)
 
     if is_pro(user_id):
+        # если уже PRO — показываем текст и лимит 100 МБ
         await message.answer(
             t(
                 user_id,
@@ -81,6 +77,7 @@ async def pro_cmd(message: types.Message):
             parse_mode="HTML",
         )
     else:
+        # предложить купить PRO
         await message.answer(
             t(user_id, "pro_info"),
             parse_mode="HTML",
