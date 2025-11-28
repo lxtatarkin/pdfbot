@@ -50,16 +50,16 @@ TEXTS: Dict[str, Dict[str, str]] = {
             "👋 Привет! Я конвертирую и обрабатываю файлы в PDF.\n\n"
             "Выбери режим на клавиатуре и пришли файл:\n\n"
             "Основные инструменты:\n"
+            "• 📄 Конвертировать в PDF\n"            
             "• 📉 Сжать PDF\n"
             "• 📎 Объединить PDF\n"
             "• ✂️ Разделить PDF\n"
-            "• 📝 PDF → текст\n"
-            "• 📄 Документ/фото → PDF\n\n"
+            "• 📝 Извлечь текст\n\n"
             "PRO-инструменты:\n"
-            "• 🔍 OCR\n"
-            "• 📑 Searchable PDF\n"
-            "• 🧩 Редактор страниц\n"
-            "• 🛡 Водяной знак\n\n"
+            "• 🔍 OCR в текст\n"
+            "• 📑 Сделать PDF с выделяемым текстом\n"
+            "• 🧩 Редактировать страницы\n"
+            "• 🛡 Добавить водяной знак\n\n"
             "Текущий тариф: <b>{tier}</b>\n"
             "Лимит: <b>{limit_mb}</b>\n\n"
             "Подключить PRO-версию: /pro"
@@ -68,11 +68,11 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "pro_already": (
             "✅ У вас уже PRO-доступ.\n"
             "Текущий лимит: {max_size}.\n\n"
-            "Доступные PRO-функции:\n"
+            "Доступные PRO-инструменты:\n"
             "• OCR (сканы/фото → текст)\n"
-            "• Searchable PDF (скан → PDF с выделяемым текстом)\n"
-            "• Редактор страниц PDF (поворот/удаление/извлечение)\n"
-            "• Водяные знаки для PDF\n"
+            "• Сделать PDF с выделяемым текстом (скан → PDF)\n"
+            "• Редактировать страницы PDF (поворот/удаление/извлечение)\n"
+            "• Добавить водяные знаки для PDF\n"
             "• Файлы до 100 МБ"
         ),
         # /pro, когда PRO нет
@@ -89,16 +89,15 @@ TEXTS: Dict[str, Dict[str, str]] = {
         ),
 
         # ===== КНОПКИ ОСНОВНОГО МЕНЮ =====
+        "btn_main_doc_to_pdf": "📄 Конвертировать в PDF",
         "btn_main_compress": "📉 Сжать PDF",
         "btn_main_merge": "📎 Объединить PDF",
         "btn_main_split": "✂️ Разделить PDF",
-        "btn_main_pdf_to_text": "📝 PDF → текст",
-        "btn_main_doc_to_pdf": "📄 Документ/фото → PDF",
-        "btn_main_ocr": "🔍 OCR",
-        "btn_main_searchable": "📑 Searchable PDF",
-        "btn_main_pages": "🧩 Редактор страниц",
-        "btn_main_watermark": "🛡 Водяной знак",
-
+        "btn_main_pdf_to_text": "📝 Извлечь текст",
+        "btn_main_ocr": "🔍 OCR в текст",
+        "btn_main_searchable": "📑 Сделать PDF с выделяемым текстом",
+        "btn_main_pages": "🧩 Редактировать страницы",
+        "btn_main_watermark": "🛡 Добавить водяной знак",
         # ===== МЕНЮ РЕДАКТОРА СТРАНИЦ =====
         "pages_rotate": "🔄 Поворот страниц",
         "pages_delete": "🗑 Удалить страницы",
@@ -373,16 +372,16 @@ TEXTS: Dict[str, Dict[str, str]] = {
             "👋 Hi! I convert and process files to PDF.\n\n"
             "Choose a mode on the keyboard and send a file:\n\n"
             "Main tools:\n"
+            "• 📄 Convert to PDF\n\n"
             "• 📉 Compress PDF\n"
-            "• 📎 Merge PDF\n"
+            "• 📎 Merge PDFs\n"
             "• ✂️ Split PDF\n"
-            "• 📝 PDF → text\n"
-            "• 📄 Document/Photo → PDF\n\n"
+            "• 📝 Extract text\n"
             "PRO tools:\n"
-            "• 🔍 OCR\n"
-            "• 📑 Searchable PDF\n"
-            "• 🧩 Page editor\n"
-            "• 🛡 Watermark\n\n"
+            "• 🔍 OCR to text\n"
+            "• 📑 Make searchable\n"
+            "• 🧩 Edit pages\n"
+            "• 🛡 Add watermark\n\n"
             "Current plan: <b>{tier}</b>\n"
             "Limit: <b>{limit_mb}</b>\n\n"
             "Upgrade to PRO: /pro"
@@ -409,15 +408,15 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "pro_pay_button": "💳 Get PRO",
 
         # ===== MAIN MENU BUTTONS =====
+        "btn_main_doc_to_pdf": "📄 Convert to PDF",
         "btn_main_compress": "📉 Compress PDF",
-        "btn_main_merge": "📎 Merge PDF",
+        "btn_main_merge": "📎 Merge PDFs",
         "btn_main_split": "✂️ Split PDF",
-        "btn_main_pdf_to_text": "📝 PDF → text",
-        "btn_main_doc_to_pdf": "📄 Document/Photo → PDF",
-        "btn_main_ocr": "🔍 OCR",
-        "btn_main_searchable": "📑 Searchable PDF",
-        "btn_main_pages": "🧩 Page editor",
-        "btn_main_watermark": "🛡 Watermark",
+        "btn_main_pdf_to_text": "📝 Extract text",
+        "btn_main_ocr": "🔍 OCR to text",
+        "btn_main_searchable": "📑 Make searchable",
+        "btn_main_pages": "🧩 Edit pages",
+        "btn_main_watermark": "🛡 Add watermark",
 
         # ===== PAGES EDITOR MENU =====
         "pages_rotate": "🔄 Rotate pages",
