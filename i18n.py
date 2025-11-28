@@ -451,6 +451,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "merge_need_two": "Add at least 2 PDF files.",
         "merge_start": "Merging {count} PDFs...",
         "merge_error": "Error while merging PDFs.",
+        "merge_confirm": "Merge PDFs",
 
         # ===== MODES =====
         "mode_compress": "Mode: compress PDF. Send a PDF file.",
