@@ -1,4 +1,4 @@
 # legal.py
 
-PRIVACY_URL = "https://lxtatarkin.github.io/pdf-bot-legal/privacy"
-TERMS_URL = "https://lxtatarkin.github.io/pdf-bot-legal/terms"
+PRIVACY_URL = "https://pdf-tools-app.github.io/pdf-bot-legal/privacy.html"
+TERMS_URL = "https://pdf-tools-app.github.io/pdf-bot-legal/terms.html"
