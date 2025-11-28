@@ -131,6 +131,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "merge_need_two": "Добавьте минимум 2 PDF.",
         "merge_start": "Объединяю {count} PDF...",
         "merge_error": "Ошибка при объединении.",
+        "merge_confirm": "Объединить PDF",
 
         # ===== РЕЖИМЫ =====
         "mode_compress": "Режим: сжатие PDF. Пришли PDF.",
@@ -139,7 +140,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "mode_merge": (
             "Режим: объединение.\n"
             "Пришли 2–10 PDF-файлов.\n"
-            "Потом напиши «Готово»."
+            "Потом нажми «Объединить»."
         ),
         "mode_split": "Режим: разделение PDF.\nПришли один PDF.",
         "mode_ocr_free": (
@@ -266,7 +267,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "merge_too_many": "Можно объединить не больше 10 файлов за раз.",
         "merge_file_added": (
             "Добавил файл #{count} для объединения.\n"
-            "Пришли ещё PDF или напиши «Готово», чтобы объединить."
+            "Пришли ещё PDF или нажми «Объединить»."
         ),
 
         # ===== PDF → TEXT =====
@@ -458,7 +459,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "mode_merge": (
             "Mode: merge PDFs.\n"
             "Send 2–10 PDF files.\n"
-            "Then type “done”."
+            "Then tap “Merge”."
         ),
         "mode_split": "Mode: split PDF.\nSend one PDF file.",
         "mode_ocr_free": (
@@ -585,7 +586,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "merge_too_many": "You can merge up to 10 files at a time.",
         "merge_file_added": (
             "File #{count} added for merging.\n"
-            "Send more PDFs or type “done” to merge."
+            "Send more PDFs or tap “Merge”."
         ),
 
         # ===== PDF → TEXT =====
