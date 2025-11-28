@@ -17,15 +17,15 @@ def get_main_keyboard(user_id: int = 0) -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
             [
+                KeyboardButton(text=t(user_id, "btn_main_doc_to_pdf")),
+            ],
+            [
                 KeyboardButton(text=t(user_id, "btn_main_compress")),
                 KeyboardButton(text=t(user_id, "btn_main_merge")),
             ],
             [
                 KeyboardButton(text=t(user_id, "btn_main_split")),
                 KeyboardButton(text=t(user_id, "btn_main_pdf_to_text")),
-            ],
-            [
-                KeyboardButton(text=t(user_id, "btn_main_doc_to_pdf")),
             ],
             [
                 KeyboardButton(text=t(user_id, "btn_main_ocr")),
