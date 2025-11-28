@@ -64,6 +64,11 @@ TEXTS: Dict[str, Dict[str, str]] = {
             "Лимит: <b>{limit_mb}</b>\n\n"
             "Подключить PRO-версию: /pro"
         ),
+        "footer_legal": (
+            "Юридическая информация: используя бота, вы соглашаетесь с "
+            '<a href="{terms}">Условиями использования</a> и '
+            '<a href="{privacy}">Политикой конфиденциальности</a>.'
+        ),        
         # /pro, когда уже есть PRO
         "pro_already": (
             "✅ У вас уже PRO-доступ.\n"
@@ -73,7 +78,10 @@ TEXTS: Dict[str, Dict[str, str]] = {
             "• Сделать PDF с выделяемым текстом (скан → PDF)\n"
             "• Редактировать страницы PDF (поворот/удаление/извлечение)\n"
             "• Добавить водяные знаки для PDF\n"
-            "• Файлы до 100 МБ"
+            "• Файлы до 100 МБ\n\n"
+            "Юридическая информация: используя PRO, вы соглашаетесь с "
+            '<a href="{terms}">Условиями использования</a> и '
+            '<a href="{privacy}">Политикой конфиденциальности</a>.'
         ),
         # /pro, когда PRO нет
         "pro_info": (
@@ -85,8 +93,13 @@ TEXTS: Dict[str, Dict[str, str]] = {
             "• Редактор страниц PDF (поворот/удаление/извлечение)\n"
             "• Водяные знаки для PDF\n"
             "• Приоритет в очереди (планируется)\n\n"
-            "Чтобы подключить PRO — напишите владельцу бота."
+            "Чтобы подключить PRO — напишите владельцу бота или используйте кнопку оплаты.\n\n"
+            "Оформляя PRO, вы соглашаетесь с "
+            '<a href="{terms}">Условиями использования</a> и '
+            '<a href="{privacy}">Политикой конфиденциальности</a>.'
         ),
+        "privacy_link": "Полную Политику конфиденциальности можно прочитать по ссылке:",
+        "terms_link": "Полные Условия использования можно прочитать по ссылке:",    
 
         # ===== КНОПКИ ОСНОВНОГО МЕНЮ =====
         "btn_main_doc_to_pdf": "📄 Конвертировать в PDF",
@@ -386,6 +399,11 @@ TEXTS: Dict[str, Dict[str, str]] = {
             "Limit: <b>{limit_mb}</b>\n\n"
             "Upgrade to PRO: /pro"
         ),
+        "footer_legal": (
+            "Legal: by using this bot you agree to the "
+            '<a href="{terms}">Terms of Use</a> and '
+            '<a href="{privacy}">Privacy Policy</a>.'
+        ),        
         "pro_already": (
             "✅ You already have PRO access.\n"
             "Current limit: {max_size}.\n\n"
@@ -405,6 +423,19 @@ TEXTS: Dict[str, Dict[str, str]] = {
             "• Watermarks\n\n"
             "Tap the button below to get PRO via Stripe."
         ),
+        "pro_info": (
+            "💼 <b>PRO access</b>\n\n"
+            "What you get now:\n"
+            "• Limit up to 100 MB\n"
+            "• OCR for scans and photos\n"
+            "• Searchable PDF\n"
+            "• PDF page editor (rotate/delete/extract)\n"
+            "• Watermarks\n\n"
+            "To get PRO, tap the payment button.\n\n"
+            "By subscribing, you agree to the "
+            '<a href="{terms}">Terms of Use</a> and '
+            '<a href="{privacy}">Privacy Policy</a>.'
+        ),        
         "pro_pay_button": "💳 Get PRO",
 
         # ===== MAIN MENU BUTTONS =====
@@ -673,6 +704,8 @@ TEXTS: Dict[str, Dict[str, str]] = {
             "• $19.99 / year — save 44% (best value)\n\n"
             "Choose a plan below 👇"
         ),
+        "privacy_link": "You can read the full Privacy Policy here:",
+        "terms_link": "You can read the full Terms of Use here:",        
 
         "pro_btn_month": "🔹 $2.99 / month",
         "pro_btn_quarter": "🔸 $6.99 / 3 months",
