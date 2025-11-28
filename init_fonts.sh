@@ -1,56 +1,52 @@
 #!/usr/bin/env bash
 set -e
 
+# Каталог, куда складываем шрифты (volume / временное хранилище)
 FONT_VOL_DIR="/fonts-private"
+# Каталог, где система ожидает ttf/otf (LibreOffice будет их видеть через fontconfig)
 FONT_TARGET_DIR="/usr/share/fonts/truetype/custom"
 
 mkdir -p "$FONT_VOL_DIR" "$FONT_TARGET_DIR"
 
-echo "=== Checking fonts in volume $FONT_VOL_DIR ==="
+echo "=== init_fonts: checking volume at $FONT_VOL_DIR ==="
 
-download_font() {
-  local name="$1"
-  local url="$2"
+# Проверяем, есть ли уже какие-то шрифты в volume (например, сохранённые с прошлого запуска через volume)
+if ls "$FONT_VOL_DIR"/*.ttf "$FONT_VOL_DIR"/*.ttc "$FONT_VOL_DIR"/*.otf >/dev/null 2>&1; then
+  echo "=== init_fonts: fonts already found in volume, skip download ==="
+else
+  echo "=== init_fonts: no fonts found in volume ==="
 
-  if [ -z "$url" ]; then
-    echo "  [WARN] URL for $name is empty, skip"
-    return
-  fi
+  # Если в Railway задана переменная окружения с URL архива шрифтов — скачиваем и распаковываем
+  if [ -n "$FONTS_ZIP_URL" ]; then
+    echo "=== init_fonts: downloading fonts archive from \$FONTS_ZIP_URL ==="
+    echo "    URL: $FONTS_ZIP_URL"
 
-  if [ -f "$FONT_VOL_DIR/$name" ]; then
-    echo "  [OK] $name already exists in volume"
+    wget -q -O /tmp/fonts.zip "$FONTS_ZIP_URL" || {
+      echo "  [ERR] Failed to download fonts.zip from $FONTS_ZIP_URL"
+    }
+
+    if [ -f /tmp/fonts.zip ]; then
+      echo "=== init_fonts: unzipping /tmp/fonts.zip into $FONT_VOL_DIR ==="
+      unzip -o /tmp/fonts.zip -d "$FONT_VOL_DIR" >/dev/null 2>&1 || echo "  [WARN] unzip failed (maybe archive is empty or corrupted)"
+    else
+      echo "  [WARN] /tmp/fonts.zip not found after download attempt"
+    fi
   else
-    echo "  [DL] Downloading $name from $url"
-    wget -q -O "$FONT_VOL_DIR/$name" "$url" || echo "  [ERR] Failed to download $name"
+    echo "=== init_fonts: FONTS_ZIP_URL is not set, skip download ==="
   fi
-}
+fi
 
-# === ЗДЕСЬ ПОДСТАВЬ СВОИ ССЫЛКИ НА ФАЙЛЫ ===
-download_font "calibri.ttf"   "https://drive.google.com/file/d/19x3QhVTT52L-QSIXP5Xu5vLfgAqUOvFO/view?usp=sharing"
-download_font "calibrib.ttf"  "https://drive.google.com/file/d/1k6tACGWs40fxtWbLJ3PVRio8u1yY1UWu/view?usp=sharing"
-download_font "calibrii.ttf"  "https://drive.google.com/file/d/1f2uMGAhN2A8Y9Cv-0l0HRelo2dMDTXHI/view?usp=sharing"
-download_font "cambria.ttc"   "https://drive.google.com/file/d/1UFCFw6NKP5lGXC3JuenBmG2JXhv2qQ5S/view?usp=sharing"
-download_font "calibril.ttf"  "https://drive.google.com/file/d/1c0y4Hi7kcYHutvUPEgBEOpVMZma7m3Kk/view?usp=sharing"
-download_font "calibrili.ttf" "https://drive.google.com/file/d/1QhdGfqWKTqGUgQVfKnfiZW-p3Hz2bWeZ/view?usp=sharing"
-download_font "calibriz.ttf"  "https://drive.google.com/file/d/1gwCKoFp0GY3jSzCtRSNkPSJlhQLFcfP-/view?usp=sharing"
-download_font "cambriab.ttf"  "https://drive.google.com/file/d/1Uv55K0Vsi-9-Xrn2A6klVSnbUj79nsAh/view?usp=sharing"
-download_font "cambriai.ttf"  "https://drive.google.com/file/d/1uZsbEHde_wNAVx1v9LUAjRyzsdsQ7ZWF/view?usp=sharing"
-download_font "cambriaz.ttf"  "https://drive.google.com/file/d/1H-kSgWbcHPa2f3-9AOms-L9t7wAkB5pX/view?usp=sharing"
-download_font "times.ttf"     "https://drive.google.com/file/d/1rF-FQBtQjth-YU7xjpUS0jwAjijSJkBF/view?usp=sharing"
-download_font "timesbd.ttf"   "https://drive.google.com/file/d/1qe5_bKPmmq-kH1rRSscINUuGPhTSw3UH/view?usp=sharing"
-download_font "timesbi.ttf"   "https://drive.google.com/file/d/17_bYK5E2LOJ-dR68LO3Z8TJIkY6wMd_r/view?usp=sharing"
-download_font "timesi.ttf"    "https://drive.google.com/file/d/1KxIjLKRK0QJ1d8NZFjx5bBZiMwHYpPP9/view?usp=sharing"
+echo "=== init_fonts: copying fonts into system dir $FONT_TARGET_DIR ==="
 
-echo "=== Copying fonts into system dir $FONT_TARGET_DIR ==="
+# Копируем все ttf/ttc/otf из volume (включая вложенные папки) в системный каталог шрифтов
+find "$FONT_VOL_DIR" -maxdepth 5 -type f \( -iname "*.ttf" -o -iname "*.ttc" -o -iname "*.otf" \) \
+  -exec cp "{}" "$FONT_TARGET_DIR"/ \; 2>/dev/null || true
 
-cp "$FONT_VOL_DIR"/*.ttf "$FONT_TARGET_DIR" 2>/dev/null || true
-cp "$FONT_VOL_DIR"/*.ttc "$FONT_TARGET_DIR" 2>/dev/null || true
-
-echo "=== Updating font cache ==="
+echo "=== init_fonts: updating font cache ==="
 fc-cache -f -v || true
 
-echo "=== Fonts visible in system (Calibri/Cambria) ==="
+echo "=== init_fonts: visible core fonts (calibri/cambria) ==="
 fc-list | grep -i "calibri\|cambria" || true
 
-echo "=== Starting bot ==="
+echo "=== init_fonts: starting bot ==="
 exec python bot.py
