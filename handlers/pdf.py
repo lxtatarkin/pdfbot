@@ -3,6 +3,7 @@ import zipfile
 
 from aiogram import Router, types, F, Bot
 from PyPDF2 import PdfReader, PdfWriter
+from keyboards import get_pages_menu_keyboard, get_merge_keyboard
 
 from settings import (
     get_user_limit,
@@ -169,12 +170,21 @@ async def handle_pdf(message: types.Message, bot: Bot):
             return
 
         files_list.append(src_path)
+        count = len(files_list)
+
+        # показываем кнопку "Объединить", когда файлов >= 2
+        if count >= 2:
+            kb = get_merge_keyboard(user_id)
+        else:
+            kb = None
+
         await message.answer(
             t(
                 user_id,
                 "merge_file_added",
-                count=len(files_list),
-            )
+                count=count,
+            ),
+            reply_markup=kb,
         )
         return
 
