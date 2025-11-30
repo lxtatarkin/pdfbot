@@ -402,7 +402,16 @@ TEXTS: Dict[str, Dict[str, str]] = {
             "Попробуй позже или напиши напрямую, если знаешь контакт."
         ),
         "support_cancelled": "Режим поддержки отменён.",
-        "support_not_waiting": "Сейчас бот не ждёт от тебя сообщение для поддержки.",        
+        "support_not_waiting": "Сейчас бот не ждёт от тебя сообщение для поддержки.",
+        
+        "support_usage": (
+            "🆘 <b>Связаться с поддержкой</b>\n\n"
+            "Отправь команду в формате:\n"
+            "<code>/support твой вопрос или описание проблемы</code>\n\n"
+            "Пример:\n"
+            "<code>/support Не конвертируется файл, бот пишет ошибку</code>"
+        ),
+                
         
     },
 
@@ -769,6 +778,14 @@ TEXTS: Dict[str, Dict[str, str]] = {
         ),
         "support_cancelled": "Support mode cancelled.",
         "support_not_waiting": "The bot is not waiting for a support message from you right now.",
+        
+        "support_usage": (
+            "🆘 <b>Contact support</b>\n\n"
+            "Use the command in the format:\n"
+            "<code>/support your question or issue</code>\n\n"
+            "Example:\n"
+            "<code>/support The bot fails to convert my file</code>"
+        ),
 
     },
 }
