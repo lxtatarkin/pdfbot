@@ -8,6 +8,7 @@ from .pages import router as pages_router
 from .watermark import router as watermark_router
 from .merge import router as merge_router
 from .pro import router as pro_router
+from .support import router as support_router 
 
 routers = [
     pro_router,
@@ -20,4 +21,5 @@ routers = [
     pages_router,
     watermark_router,
     merge_router,
+    support_router,
 ]
