@@ -343,12 +343,33 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "wm_done": "Готово: PDF с водяным знаком.",
         
         # ===== ОПЛАТА PRO =====
+        # ===== ОПЛАТА PRO =====
+        "pro_info": (
+            "💼 <b>PRO-доступ</b>\n\n"
+            "Что даёт:\n"
+            "• Лимит до 100 МБ\n"
+            "• OCR (сканы и фото → текст)\n"
+            "• Searchable PDF (скан → PDF с выделяемым текстом)\n"
+            "• Редактор страниц PDF (поворот/удаление/извлечение)\n"
+            "• Водяные знаки\n\n"
+            "Выберите срок подписки с помощью кнопок ниже.\n\n"
+            "Оформляя PRO, вы соглашаетесь с "
+            '<a href="{terms}">Условиями использования</a> и '
+            '<a href="{privacy}">Политикой конфиденциальности</a>.'
+        ),
+
+        "pro_activated": (
+            "✅ Подписка PRO активирована!\n"
+            "Лимит увеличен до 100 МБ, PRO-инструменты доступны."
+        ),
+
         "pro_pay_button": "Оплатить PRO",
         "pro_pay_hint": (
             "💼 <b>PRO-доступ</b>\n\n"
-            "Оплатите PRO банковской картой через защищённую страницу Stripe."
+            "Оплатите PRO через Telegram Stars."
         ),
 
+        # Этот блок сейчас нигде не используется, но пусть будет без долларов
         "pro_info_short": (
             "💼 <b>PRO-доступ</b>\n\n"
             "Открывает все инструменты:\n"
@@ -356,25 +377,14 @@ TEXTS: Dict[str, Dict[str, str]] = {
             "• <b>OCR</b> для сканов и фото\n"
             "• <b>Searchable PDF</b>\n"
             "• <b>Редактор страниц</b>\n"
-            "• <b>Водяные знаки</b>\n"
-            "• <b>Приоритетная обработка</b>\n\n"
-            "<b>Тарифы:</b>\n"
-            "• $2.99 / месяц — гибко\n"
-            "• $6.99 / 3 месяца — экономия 22%\n"
-            "• $19.99 / год — экономия 44% (лучший выбор)\n\n"
-            "Выберите план ниже 👇"
+            "• <b>Водяные знаки</b>\n\n"
+            "Выберите срок подписки с помощью кнопок ниже 👇"
         ),
 
-        "pro_btn_month": "🔹 $2.99 / месяц",
-        "pro_btn_quarter": "🔸 $6.99 / 3 месяца",
-        "pro_btn_year": "🏆 $19.99 / год",
-
-        "pro_manage_btn": "🔧 Управлять подпиской",
-
-        "pro_activated": (
-            "✅ Подписка PRO успешно активирована!\n"
-            "Лимит увеличен до 100 МБ, PRO-инструменты доступны."
-        ),        
+        "pro_btn_month": "🔹 PRO на 1 месяц",
+        "pro_btn_quarter": "🔸 PRO на 3 месяца",
+        "pro_btn_year": "🏆 PRO на 12 месяцев",
+        "pro_manage_btn": "🔧 Управлять подпиской",     
         
     },
 
@@ -681,39 +691,48 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "wm_done": "Done: PDF with watermark.",
 
         # ===== PRO PAYMENT =====
-        "pro_pay_button": "Pay for PRO",
-        "pro_pay_hint": (
-        "💼 <b>PRO access</b>\n\n"
-        "Pay for PRO with your bank card via secure Stripe checkout."
-        ),
-
-        "pro_info_short": (
+        # ===== PRO PAYMENT =====
+        "pro_info": (
             "💼 <b>PRO access</b>\n\n"
-            "Unlock all premium tools:\n"
-            "• Up to <b>100 MB</b> per file\n"
-            "• <b>OCR</b> for scans/photos\n"
-            "• <b>Searchable PDF</b>\n"
-            "• <b>Page editor</b> (rotate/delete/extract)\n"
-            "• <b>Watermarks</b>\n"
-            "• <b>Priority processing</b>\n\n"
-            "<b>Plans:</b>\n"
-            "• $2.99 / month — flexible\n"
-            "• $6.99 / 3 months — save 22%\n"
-            "• $19.99 / year — save 44% (best value)\n\n"
-            "Choose a plan below 👇"
+            "You get:\n"
+            "• Limit up to 100 MB\n"
+            "• OCR for scans and photos\n"
+            "• Searchable PDF\n"
+            "• PDF page editor (rotate/delete/extract)\n"
+            "• Watermarks\n\n"
+            "Choose the subscription period using the buttons below.\n\n"
+            "By subscribing, you agree to the "
+            '<a href="{terms}">Terms of Use</a> and '
+            '<a href="{privacy}">Privacy Policy</a>.'
         ),
-        "privacy_link": "You can read the full Privacy Policy here:",
-        "terms_link": "You can read the full Terms of Use here:",        
-
-        "pro_btn_month": "🔹 $2.99 / month",
-        "pro_btn_quarter": "🔸 $6.99 / 3 months",
-        "pro_btn_year": "🏆 $19.99 / year",
-        "pro_manage_btn": "🔧 Manage subscription",
 
         "pro_activated": (
             "✅ PRO subscription has been activated!\n"
             "Limit increased to 100 MB, PRO tools are now available."
-        ),        
+        ),
+
+        "pro_pay_button": "Get PRO",
+        "pro_pay_hint": (
+            "💼 <b>PRO access</b>\n\n"
+            "Pay for PRO via Telegram Stars."
+        ),
+
+        "pro_info_short": (
+            "💼 <b>PRO access</b>\n\n"
+            "Unlocks all premium tools:\n"
+            "• Up to <b>100 MB</b> per file\n"
+            "• <b>OCR</b> for scans/photos\n"
+            "• <b>Searchable PDF</b>\n"
+            "• <b>Page editor</b>\n"
+            "• <b>Watermarks</b>\n\n"
+            "Choose the subscription period using the buttons below 👇"
+        ),
+
+        "pro_btn_month": "🔹 PRO for 1 month",
+        "pro_btn_quarter": "🔸 PRO for 3 months",
+        "pro_btn_year": "🏆 PRO for 12 months",
+        "pro_manage_btn": "🔧 Manage subscription",
+      
     },
 }
 
