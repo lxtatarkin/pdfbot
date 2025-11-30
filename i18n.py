@@ -62,7 +62,8 @@ TEXTS: Dict[str, Dict[str, str]] = {
             "• 🛡 Добавить водяной знак\n\n"
             "Текущий тариф: <b>{tier}</b>\n"
             "Лимит: <b>{limit_mb}</b>\n\n"
-            "Подключить PRO-версию: /pro"
+            "Подключить PRO-версию: /pro\n\n"
+            "Связаться с поддержкой: /support"
         ),
         "footer_legal": (
             "Юридическая информация: используя бота, вы соглашаетесь с "
@@ -343,7 +344,6 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "wm_done": "Готово: PDF с водяным знаком.",
         
         # ===== ОПЛАТА PRO =====
-        # ===== ОПЛАТА PRO =====
         "pro_info": (
             "💼 <b>PRO-доступ</b>\n\n"
             "Что даёт:\n"
@@ -384,7 +384,25 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "pro_btn_month": "🔹 PRO на 1 месяц",
         "pro_btn_quarter": "🔸 PRO на 3 месяца",
         "pro_btn_year": "🏆 PRO на 12 месяцев",
-        "pro_manage_btn": "🔧 Управлять подпиской",     
+        "pro_manage_btn": "🔧 Управлять подпиской",
+
+        # ===== ПОДДЕРЖКА =====
+        "support_intro": (
+            "🆘 <b>Связаться с поддержкой</b>\n\n"
+            "Напиши одним следующим сообщением, в чём проблема или вопрос.\n"
+            "Я перешлю его разработчику бота.\n\n"
+            "Чтобы отменить, отправь /support_cancel."
+        ),
+        "support_sent": (
+            "✅ Сообщение отправлено разработчику.\n"
+            "Обычно он отвечает в личные сообщения в Telegram."
+        ),
+        "support_error": (
+            "❌ Не удалось отправить сообщение в поддержку.\n"
+            "Попробуй позже или напиши напрямую, если знаешь контакт."
+        ),
+        "support_cancelled": "Режим поддержки отменён.",
+        "support_not_waiting": "Сейчас бот не ждёт от тебя сообщение для поддержки.",        
         
     },
 
@@ -405,7 +423,9 @@ TEXTS: Dict[str, Dict[str, str]] = {
             "• 🛡 Add watermark\n\n"
             "Current plan: <b>{tier}</b>\n"
             "Limit: <b>{limit_mb}</b>\n\n"
-            "Upgrade to PRO: /pro"
+            "Upgrade to PRO: /pro\n\n"
+            "Contact support: /support"
+            
         ),
         "footer_legal": (
             "Legal: by using this bot you agree to the "
@@ -691,7 +711,6 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "wm_done": "Done: PDF with watermark.",
 
         # ===== PRO PAYMENT =====
-        # ===== PRO PAYMENT =====
         "pro_info": (
             "💼 <b>PRO access</b>\n\n"
             "You get:\n"
@@ -732,7 +751,25 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "pro_btn_quarter": "🔸 PRO for 3 months",
         "pro_btn_year": "🏆 PRO for 12 months",
         "pro_manage_btn": "🔧 Manage subscription",
-      
+
+        # ===== SUPPORT =====
+        "support_intro": (
+            "🆘 <b>Contact support</b>\n\n"
+            "Send your question or issue as the next message.\n"
+            "I will forward it to the bot developer.\n\n"
+            "To cancel, send /support_cancel."
+        ),
+        "support_sent": (
+            "✅ Your message has been sent to the developer.\n"
+            "They will usually reply to you in Telegram DM."
+        ),
+        "support_error": (
+            "❌ Failed to send the message to support.\n"
+            "Please try again later or contact the developer directly if you have their contact."
+        ),
+        "support_cancelled": "Support mode cancelled.",
+        "support_not_waiting": "The bot is not waiting for a support message from you right now.",
+
     },
 }
 
