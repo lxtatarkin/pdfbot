@@ -410,8 +410,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
             "<code>/support твой вопрос или описание проблемы</code>\n\n"
             "Пример:\n"
             "<code>/support Не конвертируется файл, бот пишет ошибку</code>"
-        ),
-                
+        ),               
         
     },
 
