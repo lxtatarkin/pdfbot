@@ -71,33 +71,6 @@ async def start_cmd(message: types.Message):
         parse_mode="HTML",
     )
 
-@router.message(Command("pro"))
-async def pro_cmd(message: types.Message):
-    user_id = message.from_user.id
-    lang = set_user_lang(user_id, message.from_user.language_code)
-
-    if is_pro(user_id):
-        await message.answer(
-            t(
-                user_id,
-                "pro_already",
-                max_size=format_mb(PRO_MAX_SIZE),
-                terms=TERMS_URL,
-                privacy=PRIVACY_URL,
-            ),
-            parse_mode="HTML",
-        )
-    else:
-        await message.answer(
-            t(
-                user_id,
-                "pro_info",
-                terms=TERMS_URL,
-                privacy=PRIVACY_URL,
-            ),
-            parse_mode="HTML",
-        )
-
 @router.message(Command("privacy"))
 async def privacy_cmd(message: types.Message):
     user_id = message.from_user.id
