@@ -1,9 +1,8 @@
 import os
+import json
 import logging
-from typing import Optional
+from typing import Optional, Set
 from pathlib import Path
-
-import requests
 
 # ========== LOGGING ==========
 logger = logging.getLogger(__name__)
@@ -25,7 +24,7 @@ TOKEN = os.getenv("BOT_TOKEN")
 if not TOKEN:
     logger.error("BOT_TOKEN is not set in environment")
 
-# username бота без @ — нужен для deeplink и HTML-страниц биллинга
+# username бота без @ — нужен для deeplink и пр.
 BOT_USERNAME = os.getenv("BOT_USERNAME", "your_bot_username")
 
 # ========== LIMITS ==========
@@ -38,46 +37,55 @@ def format_mb(size_bytes: int) -> str:
     return f"{int(mb)} MB"
 
 
-# ========== BILLING SERVICE ==========
-# В pdfbot-staging в Railway:
-#  APP_BASE_URL=https://pdfbot-billing-production.up.railway.app
-#  (можешь также добавить BILLING_BASE_URL, но не обязательно)
-BILLING_BASE_URL = (
-    os.getenv("BILLING_BASE_URL")
-    or os.getenv("APP_BASE_URL")  # fallback на уже существующую переменную
-)
+# ========== PRO USERS STORAGE (локально, без Stripe) ==========
 
-if not BILLING_BASE_URL:
-    logger.error("BILLING_BASE_URL / APP_BASE_URL not set; PRO check will fail")
+PRO_USERS_FILE = BASE_DIR / "pro_users.json"
 
 
-# ========== PRO CHECK ==========
-def _is_pro_remote(user_id: int) -> Optional[bool]:
-    """
-    GET {BILLING_BASE_URL}/is-pro?user_id=...
-    Возвращает True/False или None при ошибке.
-    """
-    if not BILLING_BASE_URL:
-        return None
-
-    url = f"{BILLING_BASE_URL.rstrip('/')}/is-pro"
+def _load_pro_users() -> Set[int]:
+    if not PRO_USERS_FILE.exists():
+        return set()
     try:
-        resp = requests.get(url, params={"user_id": user_id}, timeout=3)
-        resp.raise_for_status()
-        data = resp.json()
-        logger.info("Billing is-pro(%s) -> %s", user_id, data)
-        return bool(data.get("pro"))
+        data = json.loads(PRO_USERS_FILE.read_text(encoding="utf-8"))
+        if isinstance(data, list):
+            return {int(x) for x in data}
     except Exception as e:
-        logger.error("Error calling billing /is-pro: %s", e)
-        return None
+        logger.error("Error reading pro_users.json: %s", e)
+    return set()
+
+
+def _save_pro_users(users: Set[int]) -> None:
+    try:
+        PRO_USERS_FILE.write_text(
+            json.dumps(sorted(users), ensure_ascii=False),
+            encoding="utf-8",
+        )
+    except Exception as e:
+        logger.error("Error writing pro_users.json: %s", e)
+
+
+def add_pro_user(user_id: int) -> None:
+    users = _load_pro_users()
+    if user_id not in users:
+        users.add(user_id)
+        _save_pro_users(users)
+        logger.info("PRO activated for user %s", user_id)
+
+
+def remove_pro_user(user_id: int) -> None:
+    users = _load_pro_users()
+    if user_id in users:
+        users.remove(user_id)
+        _save_pro_users(users)
+        logger.info("PRO deactivated for user %s", user_id)
 
 
 def is_pro(user_id: int) -> bool:
     """
-    Единственный источник истины — billing-сервис.
+    Истина — если пользователь есть в локальном списке PRO.
     """
-    result = _is_pro_remote(user_id)
-    return bool(result)
+    users = _load_pro_users()
+    return user_id in users
 
 
 def get_user_limit(user_id: int) -> int:
