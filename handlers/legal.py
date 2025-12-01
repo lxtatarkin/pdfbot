@@ -12,13 +12,14 @@ router = Router()
 @router.message(Command("privacy"))
 async def cmd_privacy(message: types.Message):
     user_id = message.from_user.id
+    # сохраняем язык пользователя
     set_user_lang(user_id, message.from_user.language_code)
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="Open",
+                    text=t(user_id, "btn_open_privacy"),
                     url=PRIVACY_URL,
                 )
             ]
@@ -35,13 +36,14 @@ async def cmd_privacy(message: types.Message):
 @router.message(Command("terms"))
 async def cmd_terms(message: types.Message):
     user_id = message.from_user.id
+    # сохраняем язык пользователя
     set_user_lang(user_id, message.from_user.language_code)
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="Open",
+                    text=t(user_id, "btn_open_terms"),
                     url=TERMS_URL,
                 )
             ]
