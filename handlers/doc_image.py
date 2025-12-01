@@ -23,8 +23,12 @@ router = Router()
 async def check_size_or_reject(message: types.Message, size_bytes: int | None) -> bool:
     """Проверка лимита размера файла для FREE/PRO."""
     user_id = message.from_user.id
-    max_size = get_user_limit(user_id)
-    tier = "PRO" if is_pro(user_id) else "FREE"
+
+    # ВАЖНО: асинхронный вызов
+    max_size = await get_user_limit(user_id)
+
+    # ВАЖНО: асинхронный вызов
+    tier = "PRO" if await is_pro(user_id) else "FREE"
 
     if size_bytes is not None and size_bytes > max_size:
         await message.answer(
