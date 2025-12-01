@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 set -e
 
+# Сначала проверяем, не установлены ли шрифты уже в системе
+echo "=== init_fonts: checking if fonts already installed ==="
+if fc-list | grep -qi "calibri"; then
+  echo "=== init_fonts: fonts already installed, skipping download and install ==="
+  echo "=== init_fonts: starting bot ==="
+  exec python bot.py
+fi
+
+echo "=== init_fonts: fonts not found, continuing installation ==="
+
 # Каталог, куда складываем шрифты (volume / временное хранилище)
 FONT_VOL_DIR="/fonts-private"
 # Каталог, где система ожидает ttf/otf (LibreOffice будет их видеть через fontconfig)
