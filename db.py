@@ -1,10 +1,10 @@
 # db.py
 import os
 import logging
-from typing import Optional
+from typing import Optional, Dict, Any
+from datetime import datetime, timezone
 
 import asyncpg
-from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -42,31 +42,32 @@ async def init_db() -> None:
             """
             CREATE TABLE IF NOT EXISTS subscriptions (
                 user_id       BIGINT PRIMARY KEY,
-                tier          TEXT NOT NULL,              -- например 'PRO'
-                expires_at    TIMESTAMPTZ NOT NULL,       -- когда истекает подписка
-                last_plan     TEXT,                       -- 'month' | 'quarter' | 'year'
-                last_payment  TEXT,                       -- id транзакции/покупки в Stars (строка)
+                tier          TEXT NOT NULL,
+                expires_at    TIMESTAMPTZ NOT NULL,
+                last_plan     TEXT,
+                last_payment  TEXT,
                 created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
                 updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
             );
             """
         )
 
-        -- Таблица промокодов (на будущее)
+        # Таблица промокодов
         await conn.execute(
             """
             CREATE TABLE IF NOT EXISTS promo_codes (
-                code         TEXT PRIMARY KEY,            -- сам промокод
-                months       INTEGER NOT NULL,            -- на сколько месяцев даёт подписку
-                max_uses     INTEGER NOT NULL,            -- сколько всего раз можно использовать
-                used_count   INTEGER NOT NULL DEFAULT 0,  -- сколько уже использовали
+                code         TEXT PRIMARY KEY,
+                months       INTEGER NOT NULL,
+                max_uses     INTEGER NOT NULL,
+                used_count   INTEGER NOT NULL DEFAULT 0,
                 is_active    BOOLEAN NOT NULL DEFAULT TRUE,
-                expires_at   TIMESTAMPTZ,                 -- опциональная дата окончания действия кода
+                expires_at   TIMESTAMPTZ,
                 created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
             );
             """
         )
 
+        # Кто использовал какой код (лог)
         await conn.execute(
             """
             CREATE TABLE IF NOT EXISTS promo_redemptions (
@@ -74,7 +75,7 @@ async def init_db() -> None:
                 code         TEXT NOT NULL REFERENCES promo_codes(code) ON DELETE CASCADE,
                 user_id      BIGINT NOT NULL,
                 redeemed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-                UNIQUE (code, user_id)                    -- один код один раз на пользователя
+                UNIQUE (code, user_id)
             );
             """
         )
@@ -102,10 +103,7 @@ async def add_subscription_months(
     payment_id: Optional[str] = None,
 ):
     """
-    Добавить пользователю N месяцев PRO.
-    Если подписка уже есть и ещё не истекла — продлеваем от текущего expires_at.
-    Если истекла или не было — считаем от текущего момента.
-    Возвращает новую дату expires_at.
+    Продлить подписку на N месяцев.
     """
     if months <= 0:
         raise ValueError("months must be > 0")
@@ -139,9 +137,9 @@ async def add_subscription_months(
         return row["expires_at"]
 
 
-async def get_subscription(user_id: int) -> Optional[dict]:
+async def get_subscription(user_id: int) -> Optional[Dict[str, Any]]:
     """
-    Вернуть информацию о подписке пользователя или None.
+    Вернуть данные подписки.
     """
     pool = await get_pool()
     async with pool.acquire() as conn:
@@ -168,7 +166,7 @@ async def get_subscription(user_id: int) -> Optional[dict]:
 
 async def is_user_pro(user_id: int) -> bool:
     """
-    True, если у пользователя активная PRO-подписка (expires_at > now()).
+    True, если подписка активна.
     """
     pool = await get_pool()
     async with pool.acquire() as conn:
