@@ -16,7 +16,12 @@ async def cmd_privacy(message: types.Message):
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Open", url=PRIVACY_URL)]
+            [
+                InlineKeyboardButton(
+                    text="Open",
+                    url=PRIVACY_URL,
+                )
+            ]
         ]
     )
 
@@ -34,7 +39,12 @@ async def cmd_terms(message: types.Message):
 
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="Open", url=TERMS_URL)]
+            [
+                InlineKeyboardButton(
+                    text="Open",
+                    url=TERMS_URL,
+                )
+            ]
         ]
     )
 

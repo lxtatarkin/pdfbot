@@ -3,7 +3,6 @@ import os
 
 from aiogram import Router, types, Bot
 from aiogram.filters import Command
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from settings import (
     is_pro,
@@ -21,7 +20,7 @@ from state import (
 )
 from keyboards import get_main_keyboard
 from i18n import set_user_lang, t, get_user_lang
-from legal import PRIVACY_URL, TERMS_URL
+from legal import PRIVACY_URL, TERMS_URL  # нужно для footer_legal
 
 router = Router()
 
@@ -30,6 +29,7 @@ try:
     ADMIN_ID = int(ADMIN_ID_RAW)
 except ValueError:
     ADMIN_ID = 0
+
 
 @router.message(Command("start"))
 async def start_cmd(message: types.Message):
@@ -40,7 +40,7 @@ async def start_cmd(message: types.Message):
     # автоопределение языка
     lang = set_user_lang(user_id, tg_lang)
 
-    # сброс состояния пользователя (нормально)
+    # сброс состояния пользователя
     user_modes[user_id] = "compress"
     user_merge_files[user_id] = []
     user_watermark_state[user_id] = {}
@@ -78,46 +78,12 @@ async def start_cmd(message: types.Message):
         parse_mode="HTML",
     )
 
-@router.message(Command("privacy"))
-async def privacy_cmd(message: types.Message):
-    user_id = message.from_user.id
-    # обновим язык по Telegram-коду
-    set_user_lang(user_id, message.from_user.language_code)
-
-    kb = InlineKeyboardMarkup().add(
-        InlineKeyboardButton(
-            text="Open",
-            url=PRIVACY_URL,
-        )
-    )
-
-    await message.answer(
-        t(user_id, "privacy_link"),
-        reply_markup=kb,
-        parse_mode="HTML",
-    )
-
-
-@router.message(Command("terms"))
-async def terms_cmd(message: types.Message):
-    user_id = message.from_user.id
-    set_user_lang(user_id, message.from_user.language_code)
-
-    kb = InlineKeyboardMarkup().add(
-        InlineKeyboardButton(
-            text="Open",
-            url=TERMS_URL,
-        )
-    )
-
-    await message.answer(
-        t(user_id, "terms_link"),
-        reply_markup=kb,
-        parse_mode="HTML",
-    )
 
 @router.message(Command("support"))
 async def support_cmd(message: types.Message, bot: Bot):
+    """
+    Использование: /support <текст сообщения>
+    """
     user_id = message.from_user.id
     lang = get_user_lang(user_id)
 
@@ -133,7 +99,7 @@ async def support_cmd(message: types.Message, bot: Bot):
     if len(parts) < 2:
         # нет текста после /support
         await message.answer(
-            t(user_id, "support_usage"),
+            t(user_id, "support_intro"),
             parse_mode="HTML",
         )
         return
@@ -155,7 +121,7 @@ async def support_cmd(message: types.Message, bot: Bot):
         "Текст:",
         user_text,
         "",
-        "Время будет по серверу, UTC.",
+        "Время: по серверу (UTC).",
     ]
     admin_text = "\n".join(lines)
 
