@@ -3,14 +3,13 @@ import os
 
 from aiogram import Router, types, Bot
 from aiogram.filters import Command
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from settings import (
     is_pro,
     get_user_limit,
     format_mb,
     logger,
-    PRO_MAX_SIZE,
-    FREE_MAX_SIZE,
 )
 from state import (
     user_modes,
@@ -20,7 +19,7 @@ from state import (
 )
 from keyboards import get_main_keyboard
 from i18n import set_user_lang, t, get_user_lang
-from legal import PRIVACY_URL, TERMS_URL  # нужно для footer_legal
+from legal import PRIVACY_URL, TERMS_URL
 
 router = Router()
 
@@ -40,19 +39,19 @@ async def start_cmd(message: types.Message):
     # автоопределение языка
     lang = set_user_lang(user_id, tg_lang)
 
-    # сброс состояния пользователя
+    # сброс состояния пользователя (нормально)
     user_modes[user_id] = "compress"
     user_merge_files[user_id] = []
     user_watermark_state[user_id] = {}
     user_pages_state[user_id] = {}
 
-    # ------- ПРОВЕРКА ПРО-СТАТУСА ----------
-    is_pro_now = is_pro(user_id)
+    # ------- ПРОВЕРКА ПРО-СТАТУСА ЧЕРЕЗ PostgreSQL ----------
+    is_pro_now = await is_pro(user_id)
     tier = "PRO" if is_pro_now else "FREE"
 
-    # лимит по тарифу
-    limit_mb_value = PRO_MAX_SIZE if is_pro_now else FREE_MAX_SIZE
-    limit_mb = format_mb(limit_mb_value)
+    # лимит по тарифу через PostgreSQL
+    limit_bytes = await get_user_limit(user_id)
+    limit_mb = format_mb(limit_bytes)
 
     logger.info(
         f"/start from {user_id} ({username}), tier={tier}, lang={lang}, tg_lang={tg_lang}"
@@ -79,11 +78,55 @@ async def start_cmd(message: types.Message):
     )
 
 
+@router.message(Command("privacy"))
+async def privacy_cmd(message: types.Message):
+    user_id = message.from_user.id
+    # обновим язык по Telegram-коду
+    set_user_lang(user_id, message.from_user.language_code)
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Open",
+                    url=PRIVACY_URL,
+                )
+            ]
+        ]
+    )
+
+    await message.answer(
+        t(user_id, "privacy_link"),
+        reply_markup=kb,
+        parse_mode="HTML",
+    )
+
+
+@router.message(Command("terms"))
+async def terms_cmd(message: types.Message):
+    user_id = message.from_user.id
+    set_user_lang(user_id, message.from_user.language_code)
+
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Open",
+                    url=TERMS_URL,
+                )
+            ]
+        ]
+    )
+
+    await message.answer(
+        t(user_id, "terms_link"),
+        reply_markup=kb,
+        parse_mode="HTML",
+    )
+
+
 @router.message(Command("support"))
 async def support_cmd(message: types.Message, bot: Bot):
-    """
-    Использование: /support <текст сообщения>
-    """
     user_id = message.from_user.id
     lang = get_user_lang(user_id)
 
@@ -99,7 +142,7 @@ async def support_cmd(message: types.Message, bot: Bot):
     if len(parts) < 2:
         # нет текста после /support
         await message.answer(
-            t(user_id, "support_intro"),
+            t(user_id, "support_usage"),
             parse_mode="HTML",
         )
         return
@@ -121,7 +164,7 @@ async def support_cmd(message: types.Message, bot: Bot):
         "Текст:",
         user_text,
         "",
-        "Время: по серверу (UTC).",
+        "Время будет по серверу, UTC.",
     ]
     admin_text = "\n".join(lines)
 
