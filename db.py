@@ -4,6 +4,7 @@ import logging
 from typing import Optional
 
 import asyncpg
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,6 @@ _pool: Optional[asyncpg.Pool] = None
 async def get_pool() -> asyncpg.Pool:
     """
     Ленивая инициализация пула подключений.
-    Вызываем этот метод везде, где нужна БД.
     """
     global _pool
 
@@ -32,13 +32,12 @@ async def get_pool() -> asyncpg.Pool:
 async def init_db() -> None:
     """
     Создаёт таблицы для подписок и промокодов, если их ещё нет.
-    Вызываем один раз при старте бота.
     """
     pool = await get_pool()
     async with pool.acquire() as conn:
-        # Включим расширение для таймзон, если его нет (на всякий случай)
         await conn.execute("SET TIME ZONE 'UTC';")
 
+        # Таблица подписок
         await conn.execute(
             """
             CREATE TABLE IF NOT EXISTS subscriptions (
@@ -53,6 +52,7 @@ async def init_db() -> None:
             """
         )
 
+        -- Таблица промокодов (на будущее)
         await conn.execute(
             """
             CREATE TABLE IF NOT EXISTS promo_codes (
@@ -91,3 +91,101 @@ async def close_db() -> None:
         await _pool.close()
         _pool = None
         logger.info("Postgres pool closed")
+
+
+# ====== ЛОГИКА ПОДПИСОК ======
+
+async def add_subscription_months(
+    user_id: int,
+    months: int,
+    plan: Optional[str] = None,
+    payment_id: Optional[str] = None,
+):
+    """
+    Добавить пользователю N месяцев PRO.
+    Если подписка уже есть и ещё не истекла — продлеваем от текущего expires_at.
+    Если истекла или не было — считаем от текущего момента.
+    Возвращает новую дату expires_at.
+    """
+    if months <= 0:
+        raise ValueError("months must be > 0")
+
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO subscriptions (user_id, tier, expires_at, last_plan, last_payment)
+            VALUES (
+                $1,
+                'PRO',
+                now() + $2 * INTERVAL '1 month',
+                $3,
+                $4
+            )
+            ON CONFLICT (user_id) DO UPDATE
+            SET
+                tier = 'PRO',
+                expires_at = GREATEST(subscriptions.expires_at, now()) + $2 * INTERVAL '1 month',
+                last_plan = $3,
+                last_payment = $4,
+                updated_at = now()
+            RETURNING expires_at;
+            """,
+            user_id,
+            months,
+            plan,
+            payment_id,
+        )
+        return row["expires_at"]
+
+
+async def get_subscription(user_id: int) -> Optional[dict]:
+    """
+    Вернуть информацию о подписке пользователя или None.
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT user_id, tier, expires_at, last_plan, last_payment
+            FROM subscriptions
+            WHERE user_id = $1;
+            """,
+            user_id,
+        )
+
+    if not row:
+        return None
+
+    return {
+        "user_id": row["user_id"],
+        "tier": row["tier"],
+        "expires_at": row["expires_at"],
+        "last_plan": row["last_plan"],
+        "last_payment": row["last_payment"],
+    }
+
+
+async def is_user_pro(user_id: int) -> bool:
+    """
+    True, если у пользователя активная PRO-подписка (expires_at > now()).
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT tier, expires_at
+            FROM subscriptions
+            WHERE user_id = $1;
+            """,
+            user_id,
+        )
+
+    if not row:
+        return False
+
+    if row["tier"] != "PRO":
+        return False
+
+    now_utc = datetime.now(timezone.utc)
+    return row["expires_at"] > now_utc
