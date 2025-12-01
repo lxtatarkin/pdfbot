@@ -410,7 +410,10 @@ TEXTS: Dict[str, Dict[str, str]] = {
             "<code>/support твой вопрос или описание проблемы</code>\n\n"
             "Пример:\n"
             "<code>/support Не конвертируется файл, бот пишет ошибку</code>"
-        ),               
+        ),
+        "btn_open_privacy": "Открыть Политику конфиденциальности",
+        "btn_open_terms": "Открыть Условия использования",
+               
         
     },
 
@@ -785,6 +788,8 @@ TEXTS: Dict[str, Dict[str, str]] = {
             "Example:\n"
             "<code>/support The bot fails to convert my file</code>"
         ),
+        "btn_open_privacy": "Open Privacy Policy",
+        "btn_open_terms": "Open Terms of Use",
 
     },
 }
