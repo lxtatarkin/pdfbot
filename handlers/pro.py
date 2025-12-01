@@ -15,11 +15,11 @@ from aiogram.types import (
 
 from i18n import t, get_user_lang
 from settings import (
-    is_pro,
+    is_pro,              # сейчас async, но в этом файле не используется — можно оставить
     format_mb,
     PRO_MAX_SIZE,
-    get_pro_expire_ts,
-    extend_pro,
+    get_pro_expire_ts,   # async: возвращает int timestamp или None
+    extend_pro,          # async: продлевает и возвращает int timestamp
 )
 from legal import TERMS_URL, PRIVACY_URL
 
@@ -91,8 +91,8 @@ async def cmd_pro(message: Message):
     user_id = message.from_user.id
     lang = get_user_lang(user_id)
 
-    # Статус подписки (динамическая часть)
-    expires_ts = get_pro_expire_ts(user_id)
+    # Статус подписки (динамическая часть) — ВАЖНО: ждём корутину
+    expires_ts = await get_pro_expire_ts(user_id)
     if expires_ts:
         until_str = format_date(expires_ts, lang)
         if lang == "ru":
@@ -192,7 +192,9 @@ async def successful_payment_handler(message: Message):
         plan = "month"
 
     days = PLAN_CONFIG[plan]["days"]
-    new_exp = extend_pro(user_id, days)
+
+    # ПРОДЛЕНИЕ ПРО — ВАЖНО: ждём корутину
+    new_exp = await extend_pro(user_id, days)
     until_str = format_date(new_exp, lang)
 
     base_text = t(
