@@ -1,8 +1,11 @@
+# settings.py
 import os
 import logging
 from pathlib import Path
+from typing import Optional
+from datetime import datetime, timezone
 
-from db import is_user_pro  # проверка PRO через PostgreSQL
+from db import is_user_pro, get_subscription  # проверка PRO и данные из PostgreSQL
 
 # ========== LOGGING ==========
 logger = logging.getLogger(__name__)
@@ -35,6 +38,26 @@ def format_mb(size_bytes: int) -> str:
 
 
 # ========== PRO SUBSCRIPTIONS (через PostgreSQL) ==========
+
+async def get_pro_expire_ts(user_id: int) -> Optional[int]:
+    """
+    Возвращает timestamp окончания PRO или None, если подписки нет/истекла.
+    Обёртка над get_subscription из db.py для совместимости со старым кодом.
+    """
+    sub = await get_subscription(user_id)
+    if not sub:
+        return None
+
+    expires_at = sub.get("expires_at")
+    if not isinstance(expires_at, datetime):
+        return None
+
+    # гарантируем UTC и возвращаем UNIX timestamp (int)
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+    return int(expires_at.timestamp())
+
 
 async def is_pro(user_id: int) -> bool:
     """
