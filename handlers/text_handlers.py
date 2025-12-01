@@ -21,7 +21,8 @@ from i18n import t  # ЛОКАЛИЗАЦИЯ
 router = Router()
 
 
-@router.message(F.text)
+# любые текстовые сообщения, КРОМЕ команд (строк, начинающихся с "/")
+@router.message(F.text, ~F.text.startswith("/"))
 async def handle_text(message: types.Message):
     user_id = message.from_user.id
     mode = user_modes.get(user_id, "compress")
