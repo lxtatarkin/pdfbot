@@ -2,12 +2,14 @@
 from pathlib import Path
 
 from aiogram import Router, types, F
+from aiogram.types import FSInputFile
 
 from settings import logger
 from state import user_modes, user_watermark_state
 from keyboards import get_watermark_keyboard
-from pdf_services import apply_watermark
 from i18n import t
+from utils import ensure_pro
+from pdf_services import apply_watermark  # <- сервисная функция
 
 router = Router()
 
@@ -57,6 +59,13 @@ async def wm_mosaic_callback(callback: types.CallbackQuery):
 @router.callback_query(F.data == "wm_apply")
 async def wm_apply_callback(callback: types.CallbackQuery):
     user_id = callback.from_user.id
+
+    # ---------- ПРОВЕРКА PRO ----------
+    if not await ensure_pro(callback.message):
+        await callback.answer()
+        return
+    # ----------------------------------
+
     state = user_watermark_state.get(user_id) or {}
     pdf_path = state.get("pdf_path")
     wm_text = state.get("text")
@@ -85,7 +94,7 @@ async def wm_apply_callback(callback: types.CallbackQuery):
         return
 
     await callback.message.answer_document(
-        types.FSInputFile(out_path),
+        FSInputFile(out_path),
         caption=t(user_id, "wm_done"),
     )
 
