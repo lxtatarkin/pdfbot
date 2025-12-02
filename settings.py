@@ -2,10 +2,10 @@
 import os
 import logging
 from pathlib import Path
-from datetime import timezone
+from datetime import datetime, timezone
 
 from db import (
-    is_user_pro,            # проверка PRO-статуса
+    is_user_pro,              # пока не используется, можно удалить из импорта
     add_subscription_months,  # продление подписки
     get_subscription,         # получение данных подписки
 )
@@ -44,27 +44,44 @@ def format_mb(size_bytes: int) -> str:
 
 async def is_pro(user_id: int) -> bool:
     """
-    Асинхронная проверка PRO-статуса пользователя через PostgreSQL.
-    Совместимо с прежним интерфейсом.
+    Проверка PRO-статуса пользователя по данным в PostgreSQL.
+    PRO только если tier='PRO' и expires_at > сейчас.
+    Совместимая по интерфейсу обёртка.
     """
-    return await is_user_pro(user_id)
+    sub = await get_subscription(user_id)
+    if not sub:
+        return False
+
+    if sub.get("tier") != "PRO":
+        return False
+
+    expires_at = sub.get("expires_at")
+    if not expires_at:
+        return False
+
+    # expires_at — datetime из asyncpg (TIMESTAMPTZ)
+    # на всякий случай нормализуем таймзону
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+    now = datetime.now(timezone.utc)
+    return expires_at > now
 
 
 async def get_user_limit(user_id: int) -> int:
     """
     Асинхронно возвращает лимит по тарифу.
-    Совместимо с прежним интерфейсом.
+    Использует is_pro, чтобы учитывать срок действия подписки.
     """
-    if await is_user_pro(user_id):
+    if await is_pro(user_id):
         return PRO_MAX_SIZE
     return FREE_MAX_SIZE
 
 
 async def get_pro_expire_ts(user_id: int) -> int | None:
     """
-    Совместимая с прошлой версией функция:
-    возвращает timestamp (int, seconds) окончания PRO
-    или None, если подписки нет/истекла.
+    Возвращает timestamp (int, seconds) окончания PRO
+    или None, если подписки нет или она истекла.
     """
     sub = await get_subscription(user_id)
     if not sub:
@@ -77,8 +94,14 @@ async def get_pro_expire_ts(user_id: int) -> int | None:
     if not expires_at:
         return None
 
-    # expires_at — это datetime из asyncpg (TIMESTAMPTZ)
-    return int(expires_at.replace(tzinfo=timezone.utc).timestamp())
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+    now = datetime.now(timezone.utc)
+    if expires_at <= now:
+        return None
+
+    return int(expires_at.timestamp())
 
 
 async def extend_pro(user_id: int, days: int) -> int:
@@ -90,7 +113,7 @@ async def extend_pro(user_id: int, days: int) -> int:
     можно либо:
       – там переделать на месяцы,
       – либо здесь грубо конвертировать: days / 30.
-    Для совместимости сделаем простую конверсию.
+    Для совместимости делаем простую конверсию.
     """
     if days <= 0:
         raise ValueError("days must be > 0")
@@ -105,4 +128,7 @@ async def extend_pro(user_id: int, days: int) -> int:
         plan=f"{months}m",
         payment_id=None,
     )
-    return int(expires_dt.replace(tzinfo=timezone.utc).timestamp())
+    if expires_dt.tzinfo is None:
+        expires_dt = expires_dt.replace(tzinfo=timezone.utc)
+
+    return int(expires_dt.timestamp())
