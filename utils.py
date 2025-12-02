@@ -10,9 +10,17 @@ async def check_size_or_reject(
     message: types.Message,
     size_bytes: Optional[int],
 ) -> bool:
+    """
+    Проверяем размер файла относительно лимита пользователя.
+    Если файл больше лимита — отправляем сообщение и возвращаем False.
+    Если всё ок — возвращаем True.
+    """
     user_id = message.from_user.id
-    max_size = get_user_limit(user_id)
-    tier = "PRO" if is_pro(user_id) else "FREE"
+
+    # ВАЖНО: вызываем асинхронные функции через await
+    max_size = await get_user_limit(user_id)
+    pro = await is_pro(user_id)
+    tier = "PRO" if pro else "FREE"
 
     if size_bytes is not None and size_bytes > max_size:
         await message.answer(
@@ -27,4 +35,3 @@ async def check_size_or_reject(
         return False
 
     return True
-

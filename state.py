@@ -1,9 +1,9 @@
+# state.py
 from pathlib import Path
 from typing import Dict, List
 
 import json
 import os
-import requests
 
 # mode:
 #   compress, pdf_text, doc_photo, merge, split, ocr, searchable_pdf,
@@ -24,31 +24,7 @@ user_watermark_state: Dict[int, dict] = {}
 # user_id -> {"pdf_path": Path, "pages": int, ... }
 user_pages_state: Dict[int, dict] = {}
 
-# ==========================
-#   PRO USERS via billing
-# ==========================
-
-BILLING_BASE_URL = os.getenv(
-    "BILLING_BASE_URL",
-    "https://pdfbot-billing-production.up.railway.app",
-)
-
-
-def is_pro_user(user_id: int) -> bool:
-    """
-    Проверяет PRO-статус пользователя через сервис billing.
-    GET {BILLING_BASE_URL}/is-pro?user_id=...
-    """
-    try:
-        resp = requests.get(
-            f"{BILLING_BASE_URL}/is-pro",
-            params={"user_id": user_id},
-            timeout=3,
-        )
-        if resp.status_code != 200:
-            return False
-
-        data = resp.json()
-        return bool(data.get("pro"))
-    except Exception:
-        return False
+# Если у тебя здесь были переменные/логика, связанные с billing API
+# (BILLING_BASE_URL, is_pro_user и т.п.) — их нужно удалить,
+# потому что теперь единственный источник правды по подписке — PostgreSQL
+# и функции is_pro/get_user_limit из settings.py.

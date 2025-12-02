@@ -5,7 +5,6 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 from db import (
-    is_user_pro,              # пока не используется, можно удалить из импорта
     add_subscription_months,  # продление подписки
     get_subscription,         # получение данных подписки
 )
@@ -40,13 +39,12 @@ def format_mb(size_bytes: int) -> str:
     return f"{int(mb)} MB"
 
 
-# ========== PRO SUBSCRIPTIONS (через PostgreSQL) ==========
+# ========== PRO SUBSCRIPTIONS (PostgreSQL) ==========
 
 async def is_pro(user_id: int) -> bool:
     """
     Проверка PRO-статуса пользователя по данным в PostgreSQL.
     PRO только если tier='PRO' и expires_at > сейчас.
-    Совместимая по интерфейсу обёртка.
     """
     sub = await get_subscription(user_id)
     if not sub:
@@ -59,8 +57,7 @@ async def is_pro(user_id: int) -> bool:
     if not expires_at:
         return False
 
-    # expires_at — datetime из asyncpg (TIMESTAMPTZ)
-    # на всякий случай нормализуем таймзону
+    # нормализуем таймзону
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
 
@@ -106,14 +103,9 @@ async def get_pro_expire_ts(user_id: int) -> int | None:
 
 async def extend_pro(user_id: int, days: int) -> int:
     """
-    Совместимая обёртка над PostgreSQL:
-    раньше было "продлить на N дней", сейчас — переведём дни в месяцы условно.
-
-    Если в pro.py ты вызываешь extend_pro(user_id, 30/90/365),
-    можно либо:
-      – там переделать на месяцы,
-      – либо здесь грубо конвертировать: days / 30.
-    Для совместимости делаем простую конверсию.
+    Обёртка над PostgreSQL для продления подписки.
+    В старом коде, возможно, вызывалась extend_pro(user_id, 30/90/365).
+    Здесь переводим дни в месяцы: days / 30 (грубо, для совместимости).
     """
     if days <= 0:
         raise ValueError("days must be > 0")
