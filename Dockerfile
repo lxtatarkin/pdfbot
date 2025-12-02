@@ -1,11 +1,19 @@
 FROM python:3.11-slim
 
-# Устанавливаем system deps: LibreOffice, Ghostscript, Tesseract + языки
+ENV DEBIAN_FRONTEND=noninteractive
+
+# ===== system deps =====
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libreoffice-core \
+    wget \
+    unzip \
+    fontconfig \
+    libfreetype6 \
+    xvfb \
+    xauth \
     libreoffice-writer \
     libreoffice-calc \
     libreoffice-impress \
+    libreoffice-core \
     fonts-dejavu-core \
     ghostscript \
     tesseract-ocr \
@@ -13,15 +21,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr-rus \
     && rm -rf /var/lib/apt/lists/*
 
+# ===== окружение LibreOffice =====
+ENV SAL_USE_VCLPLUGIN=gen \
+    VCL_PLUGIN=gen \
+    SAL_FORCEDPI=96 \
+    PYTHONUNBUFFERED=1
+
 WORKDIR /app
 
-# Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy bot code
 COPY . .
 
-ENV PYTHONUNBUFFERED=1
+RUN chmod +x /app/init_fonts.sh
 
-CMD ["python", "bot.py"]
+CMD ["bash", "/app/init_fonts.sh"]
