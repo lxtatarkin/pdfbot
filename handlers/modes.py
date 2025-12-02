@@ -125,7 +125,7 @@ async def mode_ocr(message: types.Message):
     reset_user_state(user_id)
     user_modes[user_id] = "ocr"
 
-    if not is_pro(user_id):
+    if not await is_pro(user_id):
         await message.answer(
             t(user_id, "mode_ocr_free"),
             reply_markup=get_main_keyboard(user_id),
@@ -143,7 +143,7 @@ async def mode_searchable_pdf(message: types.Message):
     reset_user_state(user_id)
     user_modes[user_id] = "searchable_pdf"
 
-    if not is_pro(user_id):
+    if not await is_pro(user_id):
         await message.answer(
             t(user_id, "mode_searchable_free"),
             reply_markup=get_main_keyboard(user_id),
@@ -160,7 +160,7 @@ async def mode_pages(message: types.Message):
     user_id = message.from_user.id
     reset_user_state(user_id)
 
-    if not is_pro(user_id):
+    if not await is_pro(user_id):
         user_modes[user_id] = "compress"
         await message.answer(
             t(user_id, "mode_pages_free"),
@@ -180,7 +180,7 @@ async def mode_watermark(message: types.Message):
     reset_user_state(user_id)
     user_modes[user_id] = "watermark"
 
-    if not is_pro(user_id):
+    if not await is_pro(user_id):
         await message.answer(
             t(user_id, "mode_watermark_free"),
             reply_markup=get_main_keyboard(user_id),

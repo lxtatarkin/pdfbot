@@ -18,7 +18,6 @@ from state import (
     user_watermark_state,
     user_pages_state,
 )
-from keyboards import get_pages_menu_keyboard
 from pdf_services import (
     ocr_pdf_to_txt,
     create_searchable_pdf,
@@ -34,8 +33,9 @@ router = Router()
 async def check_size_or_reject(message: types.Message, size_bytes: int | None) -> bool:
     """Проверка лимита размера файла для FREE/PRO."""
     user_id = message.from_user.id
-    max_size = get_user_limit(user_id)
-    tier = "PRO" if is_pro(user_id) else "FREE"
+
+    max_size = await get_user_limit(user_id)
+    tier = "PRO" if await is_pro(user_id) else "FREE"
 
     if size_bytes is not None and size_bytes > max_size:
         await message.answer(
@@ -73,7 +73,7 @@ async def handle_pdf(message: types.Message, bot: Bot):
     # РЕДАКТОР СТРАНИЦ: новый PDF
     # =============================
     if mode.startswith("pages"):
-        if not is_pro(user_id):
+        if not await is_pro(user_id):
             await message.answer(t(user_id, "pages_pro_only_full"))
             return
 
@@ -106,7 +106,7 @@ async def handle_pdf(message: types.Message, bot: Bot):
     # PRO: OCR ДЛЯ PDF
     # =============================
     if mode == "ocr":
-        if not is_pro(user_id):
+        if not await is_pro(user_id):
             await message.answer(t(user_id, "ocr_pro_only"))
             return
 
@@ -128,7 +128,7 @@ async def handle_pdf(message: types.Message, bot: Bot):
     # PRO: Searchable PDF
     # =============================
     if mode == "searchable_pdf":
-        if not is_pro(user_id):
+        if not await is_pro(user_id):
             await message.answer(t(user_id, "searchable_pro_only"))
             return
 
@@ -150,7 +150,7 @@ async def handle_pdf(message: types.Message, bot: Bot):
     # WATERMARK STEP 1: получить PDF
     # =============================
     if mode == "watermark":
-        if not is_pro(user_id):
+        if not await is_pro(user_id):
             await message.answer(t(user_id, "wm_pro_only"))
             return
 

@@ -1,4 +1,4 @@
-# handlers/merge_done.py
+# handlers/merge.py
 from pathlib import Path
 
 from aiogram import Router, types, F

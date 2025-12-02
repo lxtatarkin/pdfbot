@@ -1,3 +1,4 @@
+# i18n.py 
 from typing import Dict, Optional
 
 # Хранилище выбранных языков пользователей

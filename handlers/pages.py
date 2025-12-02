@@ -20,7 +20,7 @@ async def pages_rotate_action(callback: types.CallbackQuery):
     pdf_path = state.get("pdf_path")
     num_pages = state.get("pages")
 
-    if not is_pro(user_id):
+    if not await is_pro(user_id):
         await callback.answer(t(user_id, "pages_pro_only"), show_alert=True)
         return
 
@@ -55,7 +55,7 @@ async def pages_delete_action(callback: types.CallbackQuery):
     pdf_path = state.get("pdf_path")
     num_pages = state.get("pages")
 
-    if not is_pro(user_id):
+    if not await is_pro(user_id):
         await callback.answer(t(user_id, "pages_pro_only"), show_alert=True)
         return
 
@@ -77,7 +77,7 @@ async def pages_extract_action(callback: types.CallbackQuery):
     pdf_path = state.get("pdf_path")
     num_pages = state.get("pages")
 
-    if not is_pro(user_id):
+    if not await is_pro(user_id):
         await callback.answer(t(user_id, "pages_pro_only"), show_alert=True)
         return
 
@@ -119,7 +119,7 @@ async def pages_rotate_angle_callback(callback: types.CallbackQuery):
     pdf_path = state.get("pdf_path")
     num_pages = state.get("pages")
 
-    if not is_pro(user_id):
+    if not await is_pro(user_id):
         await callback.answer(t(user_id, "pages_pro_only"), show_alert=True)
         return
 
