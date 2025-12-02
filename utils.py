@@ -17,7 +17,7 @@ async def check_size_or_reject(
     """
     user_id = message.from_user.id
 
-    # ВАЖНО: вызываем асинхронные функции через await
+    # ВАЖНО: асинхронные функции вызываем через await
     max_size = await get_user_limit(user_id)
     pro = await is_pro(user_id)
     tier = "PRO" if pro else "FREE"
@@ -32,6 +32,26 @@ async def check_size_or_reject(
         logger.info(
             f"User {user_id} exceeded size limit: file={size_bytes}, limit={max_size}"
         )
+        return False
+
+    return True
+
+
+async def ensure_pro(message: types.Message) -> bool:
+    """
+    Универсальная проверка PRO.
+    Возвращает True, если PRO активен.
+    Если нет — отправляет сообщение и возвращает False.
+    """
+    user_id = message.from_user.id
+    pro = await is_pro(user_id)
+
+    if not pro:
+        await message.answer(
+            "Ваш PRO не активен или закончился.\n"
+            "Оформите или продлите подписку через /pro."
+        )
+        logger.info(f"User {user_id} tried PRO feature without active subscription")
         return False
 
     return True
