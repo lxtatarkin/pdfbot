@@ -51,7 +51,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
             "👋 Привет! Я конвертирую и обрабатываю файлы в PDF.\n\n"
             "Выбери режим на клавиатуре и пришли файл:\n\n"
             "Основные инструменты:\n"
-            "• 📄 Конвертировать в PDF\n"            
+            "• 📄 Конвертировать в PDF\n"
             "• 📉 Сжать PDF\n"
             "• 📎 Объединить PDF\n"
             "• ✂️ Разделить PDF\n"
@@ -62,7 +62,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
             "• 🧩 Редактировать страницы\n"
             "• 🛡 Добавить водяной знак\n\n"
             "Текущий тариф: <b>{tier}</b>\n"
-            "Лимит: <b>{limit_mb}</b>\n\n"
+            "Лимит: <b>{limit_mb}</b> (ограничение Telegram)\n\n"
             "Подключить PRO-версию: /pro\n\n"
             "Связаться с поддержкой: /support"
         ),
@@ -70,17 +70,16 @@ TEXTS: Dict[str, Dict[str, str]] = {
             "Юридическая информация: используя бота, вы соглашаетесь с "
             '<a href="{terms}">Условиями использования</a> и '
             '<a href="{privacy}">Политикой конфиденциальности</a>.'
-        ),        
+        ),
         # /pro, когда уже есть PRO
         "pro_already": (
-            "✅ У вас уже PRO-доступ.\n"
-            "Текущий лимит: {max_size}.\n\n"
+            "✅ У вас уже PRO-доступ.\n\n"
             "Доступные PRO-инструменты:\n"
             "• OCR (сканы/фото → текст)\n"
             "• Сделать PDF с выделяемым текстом (скан → PDF)\n"
             "• Редактировать страницы PDF (поворот/удаление/извлечение)\n"
-            "• Добавить водяные знаки для PDF\n"
-            "• Файлы до 100 МБ\n\n"
+            "• Добавлять водяные знаки для PDF\n\n"
+            "Размер файлов ограничен Telegram: до 20 МБ на файл.\n\n"
             "Юридическая информация: используя PRO, вы соглашаетесь с "
             '<a href="{terms}">Условиями использования</a> и '
             '<a href="{privacy}">Политикой конфиденциальности</a>.'
@@ -88,18 +87,17 @@ TEXTS: Dict[str, Dict[str, str]] = {
         # /pro, когда PRO нет
         "pro_info": (
             "💼 <b>PRO-доступ</b>\n\n"
-            "Что даёт сейчас:\n"
-            "• Лимит до 100 МБ\n"
-            "• OCR (сканы и фото → текст)\n"
-            "• Searchable PDF (скан → PDF с выделяемым текстом)\n"
-            "• Редактор страниц PDF (поворот/удаление/извлечение)\n"
-            "• Водяные знаки для PDF\n\n"
+            "Что даёт:\n"
+            "• Все PRO-инструменты: OCR, Searchable PDF, редактор страниц, водяные знаки\n"
+            "• Приоритетная обработка (по возможности)\n\n"
+            "Размер файлов ограничен Telegram: до 20 МБ на файл.\n\n"
+            "Выберите срок подписки с помощью кнопок ниже.\n\n"
             "Оформляя PRO, вы соглашаетесь с "
             '<a href="{terms}">Условиями использования</a> и '
             '<a href="{privacy}">Политикой конфиденциальности</a>.'
         ),
         "privacy_link": "Полную Политику конфиденциальности можно прочитать по ссылке:",
-        "terms_link": "Полные Условия использования можно прочитать по ссылке:",    
+        "terms_link": "Полные Условия использования можно прочитать по ссылке:",
 
         # ===== КНОПКИ ОСНОВНОГО МЕНЮ =====
         "btn_main_doc_to_pdf": "📄 Конвертировать в PDF",
@@ -111,6 +109,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "btn_main_searchable": "📑 Сделать PDF с выделяемым текстом",
         "btn_main_pages": "🧩 Редактировать страницы",
         "btn_main_watermark": "🛡 Добавить водяной знак",
+
         # ===== МЕНЮ РЕДАКТОРА СТРАНИЦ =====
         "pages_rotate": "🔄 Поворот страниц",
         "pages_delete": "🗑 Удалить страницы",
@@ -124,10 +123,10 @@ TEXTS: Dict[str, Dict[str, str]] = {
 
         # ===== DOC/IMAGE HANDLER =====
         "err_file_too_big": (
-            "Файл слишком большой для тарифа ({tier}).\n"
-            "Лимит: {limit}.\n\n"
-            "Для больших файлов нужен PRO.\n"
-            "Смотрите /pro."
+            "Файл слишком большой.\n"
+            "Лимит Telegram: {limit} на файл.\n\n"
+            "Пожалуйста, уменьшите размер файла (сжатие или разделение) "
+            "и отправьте его снова."
         ),
         "msg_converting_image": "Конвертирую изображение в PDF...",
         "msg_converting_doc": "Конвертирую документ в PDF...",
@@ -343,16 +342,14 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "wm_applying": "Добавляю водяной знак в PDF...",
         "wm_save_failed": "Не получилось сохранить PDF с водяным знаком.",
         "wm_done": "Готово: PDF с водяным знаком.",
-        
+
         # ===== ОПЛАТА PRO =====
         "pro_info": (
             "💼 <b>PRO-доступ</b>\n\n"
             "Что даёт:\n"
-            "• Лимит до 100 МБ\n"
-            "• OCR (сканы и фото → текст)\n"
-            "• Searchable PDF (скан → PDF с выделяемым текстом)\n"
-            "• Редактор страниц PDF (поворот/удаление/извлечение)\n"
-            "• Водяные знаки\n\n"
+            "• Все PRO-инструменты: OCR, Searchable PDF, редактор страниц, водяные знаки\n"
+            "• Приоритетная обработка (по возможности)\n\n"
+            "Размер файлов ограничен Telegram: до 20 МБ на файл.\n\n"
             "Выберите срок подписки с помощью кнопок ниже.\n\n"
             "Оформляя PRO, вы соглашаетесь с "
             '<a href="{terms}">Условиями использования</a> и '
@@ -361,7 +358,8 @@ TEXTS: Dict[str, Dict[str, str]] = {
 
         "pro_activated": (
             "✅ Подписка PRO активирована!\n"
-            "Лимит увеличен до 100 МБ, PRO-инструменты доступны."
+            "PRO-инструменты теперь доступны.\n"
+            "Размер файлов по-прежнему ограничен Telegram (до 20 МБ на файл)."
         ),
 
         "pro_pay_button": "Оплатить PRO",
@@ -370,15 +368,14 @@ TEXTS: Dict[str, Dict[str, str]] = {
             "Оплатите PRO через Telegram Stars."
         ),
 
-        # Этот блок сейчас нигде не используется, но пусть будет без долларов
         "pro_info_short": (
             "💼 <b>PRO-доступ</b>\n\n"
             "Открывает все инструменты:\n"
-            "• До <b>100 МБ</b> на файл\n"
             "• <b>OCR</b> для сканов и фото\n"
             "• <b>Searchable PDF</b>\n"
             "• <b>Редактор страниц</b>\n"
             "• <b>Водяные знаки</b>\n\n"
+            "Размер файлов ограничен Telegram: до 20 МБ на файл.\n"
             "Выберите срок подписки с помощью кнопок ниже 👇"
         ),
 
@@ -404,7 +401,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
         ),
         "support_cancelled": "Режим поддержки отменён.",
         "support_not_waiting": "Сейчас бот не ждёт от тебя сообщение для поддержки.",
-        
+
         "support_usage": (
             "🆘 <b>Связаться с поддержкой</b>\n\n"
             "Отправь команду в формате:\n"
@@ -414,8 +411,6 @@ TEXTS: Dict[str, Dict[str, str]] = {
         ),
         "btn_open_privacy": "Открыть Политику конфиденциальности",
         "btn_open_terms": "Открыть Условия использования",
-               
-        
     },
 
     "en": {
@@ -434,48 +429,45 @@ TEXTS: Dict[str, Dict[str, str]] = {
             "• 🧩 Edit pages\n"
             "• 🛡 Add watermark\n\n"
             "Current plan: <b>{tier}</b>\n"
-            "Limit: <b>{limit_mb}</b>\n\n"
+            "Limit: <b>{limit_mb}</b> (Telegram limit)\n\n"
             "Upgrade to PRO: /pro\n\n"
             "Contact support: /support"
-            
         ),
         "footer_legal": (
             "Legal: by using this bot you agree to the "
             '<a href="{terms}">Terms of Use</a> and '
             '<a href="{privacy}">Privacy Policy</a>.'
-        ),        
+        ),
         "pro_already": (
-            "✅ You already have PRO access.\n"
-            "Current limit: {max_size}.\n\n"
+            "✅ You already have PRO access.\n\n"
             "Available PRO features:\n"
             "• OCR (scans/photos → text)\n"
             "• Searchable PDF (scan → PDF with selectable text)\n"
             "• PDF page editor (rotate/delete/extract)\n"
-            "• PDF watermarks\n"
-            "• Files up to 100 MB"
+            "• PDF watermarks\n\n"
+            "File size is limited by Telegram to 20 MB per file.\n"
         ),
         "pro_info_short": (
             "💼 <b>PRO access</b>\n\n"
-            "• Limit up to 100 MB\n"
-            "• OCR (scans and photos → text)\n"
-            "• Searchable PDF\n"
-            "• PDF page editor\n"
-            "• Watermarks\n\n"
+            "Unlocks all premium tools:\n"
+            "• <b>OCR</b> for scans and photos\n"
+            "• <b>Searchable PDF</b>\n"
+            "• <b>PDF page editor</b>\n"
+            "• <b>Watermarks</b>\n\n"
+            "File size is limited by Telegram to 20 MB per file.\n"
             "Tap the button below to get PRO via Stripe."
         ),
         "pro_info": (
             "💼 <b>PRO access</b>\n\n"
-            "What you get now:\n"
-            "• Limit up to 100 MB\n"
-            "• OCR for scans and photos\n"
-            "• Searchable PDF\n"
-            "• PDF page editor (rotate/delete/extract)\n"
-            "• Watermarks\n\n"
-            "To get PRO, tap the payment button.\n\n"
+            "What you get:\n"
+            "• All PRO tools: OCR, searchable PDF, page editor, watermarks\n"
+            "• Priority processing (when possible)\n\n"
+            "File size is limited by Telegram to 20 MB per file.\n\n"
+            "Choose the subscription period using the buttons below.\n\n"
             "By subscribing, you agree to the "
             '<a href="{terms}">Terms of Use</a> and '
             '<a href="{privacy}">Privacy Policy</a>.'
-        ),        
+        ),
         "pro_pay_button": "💳 Get PRO",
 
         # ===== MAIN MENU BUTTONS =====
@@ -502,10 +494,9 @@ TEXTS: Dict[str, Dict[str, str]] = {
 
         # ===== DOC/IMAGE HANDLER =====
         "err_file_too_big": (
-            "The file is too large for your plan ({tier}).\n"
-            "Limit: {limit}.\n\n"
-            "Large files require PRO.\n"
-            "See /pro."
+            "The file is too large.\n"
+            "Telegram limit: {limit} per file.\n\n"
+            "Please reduce the file size (compress or split it) and send again."
         ),
         "msg_converting_image": "Converting image to PDF...",
         "msg_converting_doc": "Converting document to PDF...",
@@ -726,11 +717,9 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "pro_info": (
             "💼 <b>PRO access</b>\n\n"
             "You get:\n"
-            "• Limit up to 100 MB\n"
-            "• OCR for scans and photos\n"
-            "• Searchable PDF\n"
-            "• PDF page editor (rotate/delete/extract)\n"
-            "• Watermarks\n\n"
+            "• All PRO tools: OCR, searchable PDF, page editor, watermarks\n"
+            "• Priority processing (when possible)\n\n"
+            "File size is limited by Telegram to 20 MB per file.\n\n"
             "Choose the subscription period using the buttons below.\n\n"
             "By subscribing, you agree to the "
             '<a href="{terms}">Terms of Use</a> and '
@@ -739,7 +728,8 @@ TEXTS: Dict[str, Dict[str, str]] = {
 
         "pro_activated": (
             "✅ PRO subscription has been activated!\n"
-            "Limit increased to 100 MB, PRO tools are now available."
+            "PRO tools are now available.\n"
+            "File size is still limited by Telegram to 20 MB per file."
         ),
 
         "pro_pay_button": "Get PRO",
@@ -751,11 +741,11 @@ TEXTS: Dict[str, Dict[str, str]] = {
         "pro_info_short": (
             "💼 <b>PRO access</b>\n\n"
             "Unlocks all premium tools:\n"
-            "• Up to <b>100 MB</b> per file\n"
             "• <b>OCR</b> for scans/photos\n"
             "• <b>Searchable PDF</b>\n"
             "• <b>Page editor</b>\n"
             "• <b>Watermarks</b>\n\n"
+            "File size is limited by Telegram to 20 MB per file.\n"
             "Choose the subscription period using the buttons below 👇"
         ),
 
@@ -781,7 +771,7 @@ TEXTS: Dict[str, Dict[str, str]] = {
         ),
         "support_cancelled": "Support mode cancelled.",
         "support_not_waiting": "The bot is not waiting for a support message from you right now.",
-        
+
         "support_usage": (
             "🆘 <b>Contact support</b>\n\n"
             "Use the command in the format:\n"
@@ -791,7 +781,6 @@ TEXTS: Dict[str, Dict[str, str]] = {
         ),
         "btn_open_privacy": "Open Privacy Policy",
         "btn_open_terms": "Open Terms of Use",
-
     },
 }
 

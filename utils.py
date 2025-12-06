@@ -17,20 +17,20 @@ async def check_size_or_reject(
     """
     user_id = message.from_user.id
 
-    # ВАЖНО: асинхронные функции вызываем через await
+    # асинхронные функции вызываем через await
     max_size = await get_user_limit(user_id)
     pro = await is_pro(user_id)
     tier = "PRO" if pro else "FREE"
 
     if size_bytes is not None and size_bytes > max_size:
         await message.answer(
-            f"Файл слишком большой для тарифа ({tier}).\n"
-            f"Лимит: {format_mb(max_size)}.\n\n"
-            "Для больших файлов нужен PRO.\n"
-            "Смотрите /pro."
+            "Файл слишком большой.\n"
+            f"Лимит Telegram: {format_mb(max_size)} на файл.\n\n"
+            "Пожалуйста, уменьшите размер файла (сжатие или разделение) "
+            "и отправьте его снова."
         )
         logger.info(
-            f"User {user_id} exceeded size limit: file={size_bytes}, limit={max_size}"
+            f"User {user_id} exceeded size limit: file={size_bytes}, limit={max_size}, tier={tier}"
         )
         return False
 
