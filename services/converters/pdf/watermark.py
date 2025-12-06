@@ -1,15 +1,113 @@
 # services/converters/pdf/watermark.py
 from pathlib import Path
+from io import BytesIO
+from typing import Tuple
 
 from PyPDF2 import PdfReader, PdfWriter
+from reportlab.pdfgen import canvas
 
 
-def apply_watermark(pdf_path: Path, text: str, pos: str = "22", mosaic: bool = False) -> Path:
+def _parse_pos(pos: str) -> Tuple[int, int]:
     """
-    Накладывает водяной знак на PDF и возвращает путь к новому файлу.
+    Преобразует код позиции '11'..'33' в (row, col) от 1 до 3.
+    1 — верх/лево, 3 — низ/право.
+    """
+    try:
+        if len(pos) == 2 and pos.isdigit():
+            row = int(pos[0])
+            col = int(pos[1])
+        else:
+            row, col = 2, 2
+    except Exception:
+        row, col = 2, 2
 
-    Сейчас упрощённая реализация: просто копируем PDF в новый файл.
-    Потом можешь вставить сюда свою реальную логику наложения watermark.
+    row = min(max(row, 1), 3)
+    col = min(max(col, 1), 3)
+    return row, col
+
+
+def _pos_to_coords(pos: str, width: float, height: float) -> Tuple[float, float]:
+    """
+    Возвращает координаты (x, y) для текста по сетке 3×3.
+    Координаты в системе reportlab: (0,0) — левый нижний угол.
+    """
+    row, col = _parse_pos(pos)
+
+    # горизонталь
+    col_factor = {1: 0.15, 2: 0.50, 3: 0.85}[col]
+    # вертикаль (1 — верх)
+    row_factor = {1: 0.80, 2: 0.50, 3: 0.20}[row]
+
+    x = width * col_factor
+    y = height * row_factor
+    return x, y
+
+
+def _make_watermark_page(
+    text: str,
+    width: float,
+    height: float,
+    pos: str = "22",
+    mosaic: bool = False,
+) -> BytesIO:
+    """
+    Создаёт одну PDF-страницу с водяным знаком в памяти и
+    возвращает BytesIO с готовим PDF.
+    """
+    packet = BytesIO()
+    c = canvas.Canvas(packet, pagesize=(width, height))
+
+    # базовый размер шрифта от размера страницы
+    base_font_size = max(12, min(width, height) * 0.04)
+    c.setFont("Helvetica", base_font_size)
+    c.setFillGray(0.6)  # серый текст
+
+    if mosaic:
+        # Тиражируем текст по всей странице
+        step_x = base_font_size * 6
+        step_y = base_font_size * 4
+
+        for xx in range(0, int(width) + int(step_x), int(step_x)):
+            for yy in range(0, int(height) + int(step_y), int(step_y)):
+                c.saveState()
+                c.translate(xx, yy)
+                c.rotate(30)
+                c.drawString(0, 0, text)
+                c.restoreState()
+    else:
+        # Одна надпись в нужной позиции
+        x, y = _pos_to_coords(pos, width, height)
+        c.saveState()
+        c.translate(x, y)
+        c.rotate(30)
+        # Центруем примерно по точке (0,0)
+        c.drawCentredString(0, 0, text)
+        c.restoreState()
+
+    c.showPage()
+    c.save()
+    packet.seek(0)
+    return packet
+
+
+def apply_watermark(
+    pdf_path: Path,
+    text: str,
+    pos: str = "22",
+    mosaic: bool = False,
+) -> Path:
+    """
+    Накладывает текстовый водяной знак на все страницы PDF и
+    возвращает путь к новому файлу.
+
+    pos — позиция по сетке 3×3:
+        '11' — верхний левый угол,
+        '12' — верх по центру,
+        '13' — верхний правый,
+        '21'/'22'/'23' — центр,
+        '31'/'32'/'33' — низ.
+
+    mosaic=True — заполняет всю страницу повторяющимся текстом.
     """
     out_path = pdf_path.with_name(pdf_path.stem + "_wm" + pdf_path.suffix)
 
@@ -17,6 +115,23 @@ def apply_watermark(pdf_path: Path, text: str, pos: str = "22", mosaic: bool = F
     writer = PdfWriter()
 
     for page in reader.pages:
+        # размеры страницы
+        width = float(page.mediabox.width)
+        height = float(page.mediabox.height)
+
+        # генерируем watermark-страницу в памяти
+        wm_buffer = _make_watermark_page(
+            text=text,
+            width=width,
+            height=height,
+            pos=pos,
+            mosaic=mosaic,
+        )
+        wm_reader = PdfReader(wm_buffer)
+        wm_page = wm_reader.pages[0]
+
+        # накладываем watermark на текущую страницу
+        page.merge_page(wm_page)
         writer.add_page(page)
 
     with out_path.open("wb") as f:
