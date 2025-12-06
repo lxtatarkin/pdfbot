@@ -30,8 +30,10 @@ if not TOKEN:
 BOT_USERNAME = os.getenv("BOT_USERNAME", "your_bot_username")
 
 # ========== LIMITS ==========
+# Телеграм жёстко ограничивает загрузку файлов пользователем в бота до 20 МБ.
+# Поэтому и FREE, и PRO имеют одинаковый лимит по размеру файла.
 FREE_MAX_SIZE = 20 * 1024 * 1024  # 20 MB
-PRO_MAX_SIZE = 100 * 1024 * 1024  # 100 MB
+PRO_MAX_SIZE = 20 * 1024 * 1024   # 20 MB (ограничение Telegram)
 
 
 def format_mb(size_bytes: int) -> str:
@@ -69,6 +71,7 @@ async def get_user_limit(user_id: int) -> int:
     """
     Асинхронно возвращает лимит по тарифу.
     Использует is_pro, чтобы учитывать срок действия подписки.
+    Сейчас размер файла одинаковый для всех, лимит задаётся Telegram.
     """
     if await is_pro(user_id):
         return PRO_MAX_SIZE

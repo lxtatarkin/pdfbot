@@ -15,7 +15,7 @@ from aiogram.types import (
 
 from i18n import t, get_user_lang
 from settings import (
-    is_pro,              # сейчас async, но в этом файле не используется — можно оставить
+    is_pro,              # async
     format_mb,
     PRO_MAX_SIZE,
     get_pro_expire_ts,   # async: возвращает int timestamp или None
@@ -91,7 +91,7 @@ async def cmd_pro(message: Message):
     user_id = message.from_user.id
     lang = get_user_lang(user_id)
 
-    # Статус подписки (динамическая часть) — ВАЖНО: ждём корутину
+    # Статус подписки (динамическая часть)
     expires_ts = await get_pro_expire_ts(user_id)
     if expires_ts:
         until_str = format_date(expires_ts, lang)
@@ -105,7 +105,6 @@ async def cmd_pro(message: Message):
         else:
             status = "You don't have a PRO subscription yet."
 
-    # Описание и юридический текст — из i18n
     body = t(
         user_id,
         "pro_info",
@@ -132,7 +131,6 @@ async def buy_callback(call: CallbackQuery, bot: Bot):
 
     price_stars = get_price_stars(plan)
 
-    # Заголовок и описание инвойса делаем короткими и завязанными на язык
     title = "PDF Converter Bot PRO"
 
     if lang == "ru":
@@ -145,7 +143,9 @@ async def buy_callback(call: CallbackQuery, bot: Bot):
 
         description = (
             f"Подписка PRO {desc_period}. "
-            f"Лимит до {format_mb(PRO_MAX_SIZE)}, все функции без ограничений."
+            "Открывает все PRO-инструменты: OCR, Searchable PDF, "
+            "редактор страниц, водяные знаки. "
+            f"Размер файлов ограничен Telegram: до {format_mb(PRO_MAX_SIZE)} на файл."
         )
     else:
         if plan == "month":
@@ -157,7 +157,9 @@ async def buy_callback(call: CallbackQuery, bot: Bot):
 
         description = (
             f"PRO subscription {desc_period}. "
-            f"Limit up to {format_mb(PRO_MAX_SIZE)}, all features unlocked."
+            "Unlocks all PRO tools: OCR, searchable PDF, "
+            "page editor, watermarks. "
+            f"File size is limited by Telegram to {format_mb(PRO_MAX_SIZE)} per file."
         )
 
     prices = [LabeledPrice(label=title, amount=price_stars)]
@@ -193,7 +195,6 @@ async def successful_payment_handler(message: Message):
 
     days = PLAN_CONFIG[plan]["days"]
 
-    # ПРОДЛЕНИЕ ПРО — ВАЖНО: ждём корутину
     new_exp = await extend_pro(user_id, days)
     until_str = format_date(new_exp, lang)
 
