@@ -30,7 +30,8 @@ async def check_size_or_reject(
             "и отправьте его снова."
         )
         logger.info(
-            f"User {user_id} exceeded size limit: file={size_bytes}, limit={max_size}, tier={tier}"
+            f"User {user_id} exceeded size limit: "
+            f"file={size_bytes}, limit={max_size}, tier={tier}"
         )
         return False
 
@@ -42,8 +43,18 @@ async def ensure_pro(message: types.Message) -> bool:
     Универсальная проверка PRO.
     Возвращает True, если PRO активен.
     Если нет — отправляет сообщение и возвращает False.
+
+    Важно: в callback-хендлерах часто передают message, созданный ботом
+    (callback.message). В этом случае message.from_user — это бот, а не
+    реальный пользователь. Тогда берём user_id из message.chat.id.
     """
     user_id = message.from_user.id
+
+    # Если это сообщение отправлено ботом (как в callback.message),
+    # используем chat.id как идентификатор пользователя (в личке это user_id).
+    if getattr(message.from_user, "is_bot", False) and message.chat:
+        user_id = message.chat.id
+
     pro = await is_pro(user_id)
 
     if not pro:
@@ -51,7 +62,9 @@ async def ensure_pro(message: types.Message) -> bool:
             "Ваш PRO не активен или закончился.\n"
             "Оформите или продлите подписку через /pro."
         )
-        logger.info(f"User {user_id} tried PRO feature without active subscription")
+        logger.info(
+            f"User {user_id} tried PRO feature without active subscription"
+        )
         return False
 
     return True
