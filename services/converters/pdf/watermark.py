@@ -28,18 +28,29 @@ def _parse_pos(pos: str) -> Tuple[int, int]:
 
 def _pos_to_coords(pos: str, width: float, height: float) -> Tuple[float, float]:
     """
-    Возвращает координаты (x, y) для текста по сетке 3×3.
-    Координаты в системе reportlab: (0,0) — левый нижний угол.
+    Возвращает координаты (x, y) для текста по сетке 3×3
+    с учётом полей.
+
+    Используем поля ~15% по краям, и равномерно делим
+    внутреннюю область на 3×3.
     """
     row, col = _parse_pos(pos)
 
-    # горизонталь
-    col_factor = {1: 0.15, 2: 0.50, 3: 0.85}[col]
-    # вертикаль (1 — верх)
-    row_factor = {1: 0.80, 2: 0.50, 3: 0.20}[row]
+    # Поля с каждой стороны (15% от размера страницы)
+    margin_x = width * 0.15
+    margin_y = height * 0.15
 
-    x = width * col_factor
-    y = height * row_factor
+    inner_width = width - 2 * margin_x
+    inner_height = height - 2 * margin_y
+
+    # col: 1..3 слева направо
+    # row: 1..3 сверху вниз
+    # горизонталь
+    x = margin_x + (col - 1) * (inner_width / 2.0)
+    # вертикаль: row=1 — верх, а система координат снизу,
+    # поэтому считаем "сверху вниз"
+    y = height - margin_y - (row - 1) * (inner_height / 2.0)
+
     return x, y
 
 
@@ -52,7 +63,7 @@ def _make_watermark_page(
 ) -> BytesIO:
     """
     Создаёт одну PDF-страницу с водяным знаком в памяти и
-    возвращает BytesIO с готовим PDF.
+    возвращает BytesIO с готовым PDF.
     """
     packet = BytesIO()
     c = canvas.Canvas(packet, pagesize=(width, height))
@@ -80,7 +91,8 @@ def _make_watermark_page(
         c.saveState()
         c.translate(x, y)
         c.rotate(30)
-        # Центруем примерно по точке (0,0)
+        # Центруем по точке (0,0) – она стоит в центре области,
+        # так что текст визуально будет «по центру» выбранной ячейки.
         c.drawCentredString(0, 0, text)
         c.restoreState()
 
